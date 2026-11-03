@@ -69,8 +69,8 @@ Mock mode recognizes the three sample screenshots in `eval/samples/` and answers
 
 3. Deploy, then open `https://<your-app>.vercel.app/api/health`. It should say `"mode": "live"`.
 
-Limits to know: Vercel allows up to 300 seconds per request on the free plan (a full run takes about 15 to 60
-seconds) and 4.5 MB per request. The demo page shrinks large screenshots before sending them.
+Limits to know: Vercel allows up to 300 seconds per request on the free plan (a full run took 40 to 80
+seconds in our live tests) and 4.5 MB per request. The demo page shrinks large screenshots before sending them.
 
 ## API
 
@@ -93,6 +93,10 @@ Content-Type: application/json
 `verdict.decision` is what to show users. `verdict.held_back` is true when the model's answer failed a check; then
 `decision` is WAIT, `reasons` explain why in plain words, and `model_decision`, `model_headline` and `model_reasons`
 keep the model's original answer.
+
+The demo page shows these codes to shoppers as BUY, TEST (for TRIAL), WAIT and DON'T BUY (for REJECT), with the
+amount due today, the recurring billing risk and the one-line `headline` at the top. Other apps can use the same
+mapping.
 
 Response, shortened (the numbers are examples, not measurements):
 
@@ -155,5 +159,19 @@ python3 tests/test_service.py
 cd eval && python3 tests/selftest.py && python3 tests/pipeline_selftest.py
 ```
 
-All tests run offline against fakes of Meta's API. The live path has not yet been run against Meta's real API from
-this repo.
+All tests run offline against fakes of Meta's API. The live path was first run against Meta's real API on
+Nov 3, 2026, with `eval/live_run.py`.
+
+## Known limitations
+
+- On a trial checkout, a plan row like "$25.00/mo" with $0.00 due today can be read either way, so the extracted
+  line total varies between runs ($0.00 or $25.00/mo). Our answer key marks it ambiguous and doesn't score it. The
+  line total doesn't feed the math checks when no subtotal is shown, and in both Nov 3 reruns the amount due today
+  was read correctly as $0.00.
+
+## Team
+
+| Name | Role |
+| --- | --- |
+| Steven Lance Rocker | Founder/Product & Editorial Research |
+| Amir Aman | AI Pipeline/Engineering |
