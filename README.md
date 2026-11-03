@@ -9,6 +9,9 @@ unknown, with the evidence for it.
 Built for the Meta Global AI Developer Hackathon (Oct 26 to Nov 4, 2026). All code in this repo was written during
 the hackathon.
 
+**Try it:** [ais-cart-pipeline.vercel.app](https://ais-cart-pipeline.vercel.app) runs in sample mode: it answers the three
+sample checkouts with prepared results and never calls Meta's models. The live pipeline runs on a private deployment.
+
 ## How it works
 
 | Step | Who | What happens |
@@ -178,3 +181,4 @@ Nov 3, 2026, with `eval/live_run.py`.
 | --- | --- |
 | Steven Lance Rocker | Founder/Product & Editorial Research |
 | Amir Aman | AI Pipeline/Engineering |
+| Sanvi Tata | Recommendation Integration / AI & Full-Stack Development |
