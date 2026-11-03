@@ -128,6 +128,11 @@ try:
     s, r = req(f"{url}/api/analyze", "POST", {"image": DOMAIN, "question": "Should I buy this domain?"})
     check("mock: Domainly gives WAIT because the renewal price is unknown",
           s == 200 and r["verdict"]["decision"] == "WAIT" and r["verdict_checks_passed"], r.get("verdict"))
+    other = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    s, r = req(f"{url}/api/analyze", "POST", {"image": other})
+    check("mock: a screenshot that isn't a sample gives WAIT, never an approval",
+          s == 200 and r["verdict"]["decision"] == "WAIT" and r["verdict_checks_passed"] and "Sample mode" in r["verdict"]["headline"],
+          r.get("verdict"))
 
     # Live path through the local server, against the fake Meta API
     p, url = start("local", {"MODEL_API_KEY": "LLM_1_test", "MODEL_API_BASE": FAKE_BASE})

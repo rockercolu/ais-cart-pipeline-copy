@@ -104,6 +104,11 @@ def mock_verdict(facts, math):
     from .checks import money
     failed = [c for c in math if not c["ok"]]
     total = (facts.get("total_due_now") or {}).get("value")
+    if (facts.get("total_due_now") or {}).get("status") == "unknown":
+        # Not one of the three samples: mock mode read nothing, so it must not approve anything
+        return {"decision": "WAIT", "headline": "Sample mode only knows the three sample checkouts, so it can't check this one",
+                "reasons": [{"text": "Sample mode doesn't read new screenshots; the live version does.", "fields": ["total_due_now"]}],
+                "check_before_buying": ["Try one of the three sample checkouts, or see the demo video for a live run"], "confidence": "low"}
     if any("total" in c["check"] or "subtotal" in c["check"] for c in failed):
         return {"decision": "WAIT", "headline": f"The totals on this checkout don't add up, so don't pay {total or 'yet'} until they do",
                 "reasons": [{"text": "A math check on the order summary failed.", "fields": ["subtotal", "discounts", "tax", "total_due_now"]}],

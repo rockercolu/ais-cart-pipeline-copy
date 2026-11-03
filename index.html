@@ -75,6 +75,7 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .rk { font-size: 16px; font-weight: 650; }
 .rk-ok { color: var(--buy); } .rk-info { color: var(--trial); } .rk-warn { color: var(--wait); }
 .how { margin: 6px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; }
+.banner { background: var(--trial-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; }
 </style>
 </head>
 <body>
@@ -84,6 +85,7 @@ td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
     <span class="tag">One picture. One question. A better purchase.</span>
     <span class="mode" id="mode">checking server</span>
   </header>
+  <div class="banner" id="mockBanner" role="note" hidden><strong>Sample mode.</strong> This public demo doesn't call Meta's models. It returns prepared answers for the three sample checkouts, so other screenshots come back as unknown. The live version runs Muse Spark and Muse Wonder on a private deployment, shown in our demo video.</div>
 
   <div class="grid">
     <section class="card" aria-label="Your checkout">
@@ -143,6 +145,7 @@ $("token").value = token;
 
 fetch("/api/health").then(r => r.json()).then(h => {
   $("mode").textContent = h.mode === "live" ? "live: Meta models" : h.mode === "mock" ? "mock: sample answers" : "not configured";
+  $("mockBanner").hidden = h.mode !== "mock";
 }).catch(() => { $("mode").textContent = "server unreachable"; });
 
 function setImage(dataUrl) {

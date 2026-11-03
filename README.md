@@ -69,6 +69,9 @@ Mock mode recognizes the three sample screenshots in `eval/samples/` and answers
 
 3. Deploy, then open `https://<your-app>.vercel.app/api/health`. It should say `"mode": "live"`.
 
+For a public demo that costs nothing, deploy a second project with only `MOCK=1` (no key, no token). Its page
+shows a "Sample mode" banner, answers the three sample checkouts, and returns WAIT for any other screenshot.
+
 Limits to know: Vercel allows up to 300 seconds per request on the free plan (a full run took 40 to 80
 seconds in our live tests) and 4.5 MB per request. The demo page shrinks large screenshots before sending them.
 
