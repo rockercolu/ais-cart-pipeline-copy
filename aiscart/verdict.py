@@ -57,7 +57,41 @@ def verdict_text(facts, math, question):
         "",
         "Math checks on those facts:",
         json.dumps(math, indent=2),
+        "",
+        "Field paths you can cite (use these exact strings, nothing else):",
+        ", ".join(sorted(field_paths(facts))),
     ])
+
+
+def verdict_schema(facts):
+    """VERDICT_SCHEMA with the cited fields limited to this checkout's real field paths."""
+    s = json.loads(json.dumps(VERDICT_SCHEMA))
+    s["properties"]["reasons"]["items"]["properties"]["fields"]["items"] = {"type": "string", "enum": sorted(field_paths(facts))}
+    return s
+
+
+_SUFFIX = re.compile(r"\.(value|status|evidence)$")
+
+
+def normalize_citations(v, facts):
+    """Map obvious variants of a valid path onto it (facts.total_due_now.value -> total_due_now). Anything that
+    doesn't map stays as written, so the citation check still catches it. Returns (verdict copy, list of changes)."""
+    known = field_paths(facts)
+    n_items = len(facts.get("line_items") or [])
+    out, changes = json.loads(json.dumps(v)), []
+    for r in out.get("reasons") or []:
+        fixed = []
+        for f in r.get("fields") or []:
+            g = _SUFFIX.sub("", str(f).strip().replace(" ", ""))
+            g = g[len("facts."):] if g.startswith("facts.") else g
+            m = re.match(r"^line_items\[(\d+)\]$", g)
+            if m and int(m.group(1)) < n_items:
+                g = f"line_items[{m.group(1)}].name"  # citing a whole row points at the row's name
+            if g in known and g != f:
+                changes.append({"cited": f, "read_as": g})
+            fixed.append(g if g in known else f)
+        r["fields"] = fixed
+    return out, changes
 
 
 def field_paths(facts):

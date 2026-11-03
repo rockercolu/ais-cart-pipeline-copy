@@ -13,7 +13,7 @@ from .checks import check_schema, math_checks
 from .meta import MetaError, est_cost
 from .review import REVIEW_SYSTEM, merge, review_schema, review_text, select_fields
 from .schema import DEFAULT_QUESTION, SCHEMA, SYSTEM_PROMPT
-from .verdict import VERDICT_SCHEMA, VERDICT_SYSTEM, finalize, validate_verdict, verdict_text
+from .verdict import VERDICT_SYSTEM, finalize, normalize_citations, validate_verdict, verdict_schema, verdict_text
 
 ALWAYS_REVIEW = ["subtotal", "discounts", "tax", "total_due_now", "renewal_terms", "trial_terms", "cancellation_terms"]
 
@@ -81,7 +81,8 @@ def analyze(image, mime, question, client, settings, review="auto"):
 
     # 4. Verdict (text only: the verdict model never sees the screenshot)
     model_verdict = call("verdict", settings["verdict_model"], VERDICT_SYSTEM, verdict_text(facts, math, question),
-                         None, "cart_verdict", VERDICT_SCHEMA, hint={"facts": facts, "math": math})
+                         None, "cart_verdict", verdict_schema(facts), hint={"facts": facts, "math": math})
+    model_verdict, citation_fixes = normalize_citations(model_verdict, facts)
     verdict_checks = validate_verdict(model_verdict, facts, math)
     verdict = finalize(model_verdict, verdict_checks)  # a failed check is held back as WAIT, never shown as BUY/TRIAL
 
@@ -93,6 +94,7 @@ def analyze(image, mime, question, client, settings, review="auto"):
         "verdict": verdict,
         "verdict_checks": verdict_checks,
         "verdict_checks_passed": all(c["ok"] for c in verdict_checks),
+        "citations_normalized": citation_fixes,
         "facts": facts,
         "checks": {"math": math, "math_before_review": math_first, "schema_problems": check_schema(facts),
                    "fields_flagged": picks},

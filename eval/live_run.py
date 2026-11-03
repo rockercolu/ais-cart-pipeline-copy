@@ -73,6 +73,7 @@ def summarize(sample, run, status, r, wall):
         model_decision=v.get("model_decision"), shown_decision=v["decision"], held_back=v.get("held_back"),
         verdict_checks_passed=r["verdict_checks_passed"],
         failed_verdict_checks=[f"{c['check']} ({c['detail']})" for c in r["verdict_checks"] if not c["ok"]],
+        citations_normalized=[f"{c['cited']} -> {c['read_as']}" for c in r.get("citations_normalized") or []],
         math_failed=math_failed,
         # The safety property: nothing that failed a check may be shown as an approval
         approval_violation=v["decision"] in ("BUY", "TRIAL") and (not r["verdict_checks_passed"] or bool(math_failed)),
@@ -125,6 +126,8 @@ def report(rows, cons, url, runs, started):
             L.append(f"- Review changed: {c}")
         for c in x["failed_verdict_checks"]:
             L.append(f"- Verdict check failed: {c}")
+        for c in x["citations_normalized"]:
+            L.append(f"- Citation read as: {c}")
         L.append("- Calls: " + "; ".join(f"{c['step']} {c['model']} {c['latency_s']}s, {c['input_tokens']} in / {c['output_tokens']} out" for c in x["calls"]))
         L.append("")
     return "\n".join(L) + "\n"

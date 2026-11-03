@@ -43,7 +43,8 @@ class FakeMeta(BaseHTTPRequestHandler):
         name = body["response_format"]["json_schema"]["name"]
         has_image = any(p.get("type") == "image_url" for p in body["messages"][1]["content"])
         UP["calls"].append({"name": name, "model": body["model"], "image": has_image, "temperature": body.get("temperature"),
-                            "reasoning": body.get("reasoning_effort"), "auth": self.headers.get("Authorization")})
+                            "reasoning": body.get("reasoning_effort"), "auth": self.headers.get("Authorization"),
+                            "schema": body["response_format"]["json_schema"]["schema"], "text": body["messages"][1]["content"][0]["text"]})
         if UP["fail"] == name:
             out, code = {"error": {"type": "authentication_error", "code": "invalid_api_key"}}, 401
         else:
@@ -197,6 +198,24 @@ try:
     s, r = req(f"{url}/api/analyze", "POST", {"image": DOMAIN})
     check("hold-back: TRIAL while the renewal price is unknown is shown as WAIT",
           r["verdict"]["decision"] == "WAIT" and r["verdict"]["model_decision"] == "TRIAL", r["verdict"])
+
+    # Citations: the verdict call is limited to real field paths, and obvious variants are accepted
+    trial = from_label(json.loads((ROOT / "eval/samples/labels/checkout_02_trial.json").read_text()))
+    UP.update(calls=[], extract=trial, review={"corrections": []},
+              verdict={"decision": "TRIAL", "headline": "Start the 7-day trial; it then costs $25.00/month",
+                       "reasons": [{"text": "Free for 7 days, then $25.00/month", "fields": ["trial_terms.value", "facts.renewal_terms"]},
+                                   {"text": "Cancel 24 hours before the trial ends", "fields": ["cancellation_terms"]},
+                                   {"text": "Nothing is due today", "fields": ["line_items[0]", "total_due_now"]}],
+                       "check_before_buying": ["Set a reminder before the trial ends"], "confidence": "high"})
+    s, r = req(f"{url}/api/analyze", "POST", {"image": CART})
+    vcall = UP["calls"][-1]
+    enum = vcall["schema"]["properties"]["reasons"]["items"]["properties"]["fields"]["items"].get("enum") or []
+    check("citations: the verdict schema only allows this checkout's field paths",
+          "trial_terms" in enum and "line_items[0].name" in enum and "savings" not in enum and "line_items[1].name" not in enum, enum)
+    check("citations: the prompt lists the valid paths", "Field paths you can cite" in vcall["text"] and "cancellation_terms" in vcall["text"])
+    check("citations: variants like trial_terms.value are read as the real field, and the TRIAL is not held back",
+          r["verdict"]["decision"] == "TRIAL" and not r["verdict"]["held_back"] and len(r["citations_normalized"]) == 3,
+          (r["verdict"], r.get("citations_normalized"), r["verdict_checks"]))
 
     # Exhaustive: whatever the model says, a failed check never reaches users as BUY or TRIAL
     sys.path.insert(0, str(ROOT))
