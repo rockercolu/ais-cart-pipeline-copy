@@ -3,156 +3,286 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>AI's Cart</title>
+<title>AI's Cart: check a checkout before you pay</title>
+<meta name="description" content="Send a checkout screenshot and get BUY, TEST, WAIT or DON'T BUY, with every fact traced to the screen.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@125,800&family=Public+Sans:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
 :root {
-  --bg: #f5f6f4; --card: #ffffff; --ink: #1a1f1c; --muted: #5f6862; --line: #dfe3df; --accent: #1f6f5c; --accent-ink: #ffffff;
-  --buy: #1f7a4d; --buy-bg: #e2f2e9; --trial: #2459a8; --trial-bg: #e3ecf8; --wait: #9a5b00; --wait-bg: #fbefd9;
-  --reject: #b42318; --reject-bg: #fdecea; --unk: #5f6862; --unk-bg: #eceeec; --chip: #eef1ee;
-  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --paper: #f2f4f6; --card: #ffffff; --ink: #13233a; --ink-2: #4b5a6c; --line: #d7dde4; --soft: #e9edf1;
+  --primary: #13233a; --on-primary: #ffffff; --focus: #1f5bb8;
+  --buy: #157347; --buy-bg: #e3f2e9; --test: #1f5bb8; --test-bg: #e4ecf8;
+  --wait: #9a5600; --wait-bg: #fbeedb; --no: #b3261e; --no-bg: #fbe7e5;
+  --sans: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --wide: "Archivo", "Arial Black", Impact, sans-serif;
+  --code: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 @media (prefers-color-scheme: dark) { :root {
-  --bg: #121614; --card: #1a201d; --ink: #e5ebe7; --muted: #9aa59f; --line: #2c3530; --accent: #57b39b; --accent-ink: #0f1412;
-  --buy: #6fd3a0; --buy-bg: #173426; --trial: #8db7f2; --trial-bg: #1b2a40; --wait: #f2b45a; --wait-bg: #3a2a12;
-  --reject: #ff8a80; --reject-bg: #3d1d1b; --unk: #a3ada7; --unk-bg: #262d29; --chip: #232a26; } }
+  --paper: #0e1620; --card: #15202c; --ink: #e5ebf1; --ink-2: #9fb0c1; --line: #2a3644; --soft: #1c2835;
+  --primary: #e5ebf1; --on-primary: #0e1620; --focus: #8db7f2;
+  --buy: #74d4a2; --buy-bg: #14301f; --test: #8db7f2; --test-bg: #182a42;
+  --wait: #f2b45a; --wait-bg: #36260f; --no: #ff8a80; --no-bg: #3b1c1a; } }
+[hidden] { display: none !important; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 var(--sans); }
-.wrap { max-width: 1100px; margin: 0 auto; padding: 28px max(16px, env(safe-area-inset-left)) 64px; display: grid; gap: 22px; }
-header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
-h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
-.tag { color: var(--muted); }
-.mode { margin-left: auto; font: 600 12px/1 var(--mono); padding: 6px 9px; border-radius: 999px; background: var(--chip); color: var(--muted); }
-.grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 22px; align-items: start; }
-@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
-.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
-h2 { margin: 0; font-size: 16px; }
-h3 { margin: 0; font-size: 14px; }
-label { font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
-textarea, select, input[type=password] { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; }
-textarea { min-height: 70px; resize: vertical; }
-.drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 16px; text-align: center; color: var(--muted); cursor: pointer; display: grid; gap: 8px; }
-.drop.over { border-color: var(--accent); }
-.drop img { max-width: 100%; max-height: 260px; border-radius: 6px; border: 1px solid var(--line); justify-self: center; }
-.samples { display: flex; flex-wrap: wrap; gap: 8px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 var(--sans); }
+.wrap { max-width: 1160px; margin: 0 auto; padding: 24px 16px 48px; display: grid; gap: 20px; }
+
+/* Header */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+.brand { font: 800 26px/1 var(--wide); font-stretch: 125%; letter-spacing: -0.01em; margin: 0; }
+.tag { color: var(--ink-2); }
+.mode { margin-left: auto; font-size: 13px; font-weight: 600; padding: 6px 10px; border-radius: 999px; background: var(--soft); color: var(--ink-2); }
+.mode.live { background: var(--buy-bg); color: var(--buy); }
+.banner { background: var(--test-bg); border-left: 4px solid var(--test); border-radius: 6px; padding: 12px 14px; font-size: 14.5px; }
+
+/* Two panels */
+.grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 880px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; min-width: 0; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+h2 { margin: 0; font-size: 18px; }
+h3 { margin: 0; font-size: 15px; }
+
+/* Left: the three steps */
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; counter-reset: step; }
+.steps > li { display: grid; gap: 8px; counter-increment: step; }
+.step-title { color: var(--ink); font-weight: 700; font-size: 15px; display: flex; gap: 8px; align-items: center; }
+.step-title::before { content: counter(step); display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--card); font-size: 12px; font-weight: 700; }
+.drop { border: 1.5px dashed var(--line); border-radius: 10px; padding: 14px; text-align: center; color: var(--ink-2); cursor: pointer; display: grid; gap: 8px; background: var(--paper); }
+.drop.over, .drop:hover { border-color: var(--ink-2); }
+.drop img { max-width: 100%; max-height: 240px; border-radius: 6px; border: 1px solid var(--line); justify-self: center; background: #fff; }
+.picked { font-size: 13.5px; color: var(--ink); font-weight: 600; }
+.samples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.samples span { font-size: 13.5px; color: var(--ink-2); width: 100%; }
 button { font: 600 14px/1 var(--sans); border-radius: 8px; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 9px 12px; cursor: pointer; }
-button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); padding: 12px 14px; font-size: 15px; }
-button:disabled { opacity: .55; cursor: wait; }
-button:focus-visible, .drop:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-.status { font-size: 14px; color: var(--muted); }
-.held { background: var(--wait-bg); color: var(--wait); border-radius: 8px; padding: 10px 12px; font-size: 14px; }
-.err { background: var(--reject-bg); color: var(--reject); border-radius: 8px; padding: 12px; font-size: 14px; white-space: pre-wrap; }
-.verdict { display: grid; gap: 12px; }
-.decision { display: inline-block; font: 700 13px/1 var(--mono); letter-spacing: .06em; padding: 8px 12px; border-radius: 8px; justify-self: start; }
-.d-BUY { color: var(--buy); background: var(--buy-bg); } .d-TRIAL { color: var(--trial); background: var(--trial-bg); }
-.d-WAIT { color: var(--wait); background: var(--wait-bg); } .d-REJECT { color: var(--reject); background: var(--reject-bg); }
-.headline { font-size: 19px; font-weight: 650; margin: 0; }
-ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
-.chip { display: inline-block; font: 12px/1.2 var(--mono); background: var(--chip); color: var(--muted); border-radius: 5px; padding: 2px 6px; margin: 2px 4px 0 0; }
-.st { display: inline-block; font: 600 11.5px/1 var(--mono); padding: 4px 7px; border-radius: 5px; }
-.st-observed { color: var(--buy); background: var(--buy-bg); } .st-inferred { color: var(--wait); background: var(--wait-bg); }
-.st-unknown { color: var(--unk); background: var(--unk-bg); }
-.ok { color: var(--buy); font-weight: 600; } .flag { color: var(--reject); font-weight: 600; }
-.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
-table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
-th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
-thead th { font: 600 11.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
-td.ev { color: var(--muted); font-size: 12.5px; }
-td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
-.fixed { font: 600 11px/1 var(--mono); color: var(--trial); margin-left: 6px; }
-.muted { color: var(--muted); font-size: 13px; }
-.empty { color: var(--muted); padding: 30px 10px; text-align: center; }
-.answer { display: grid; gap: 16px; padding: 20px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg); }
-.label { font: 800 34px/1 var(--sans); letter-spacing: .01em; justify-self: start; padding: 10px 16px; border-radius: 10px; }
-.why { font-size: 19px; font-weight: 650; margin: 0; }
-.money { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; }
+button:hover { border-color: var(--ink-2); }
+button[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
+button.primary { width: 100%; background: var(--primary); color: var(--on-primary); border-color: var(--primary); padding: 14px; font-size: 16px; }
+button.primary:disabled { opacity: .45; cursor: not-allowed; }
+button.ghost { background: transparent; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+label { font-size: 14px; color: var(--ink-2); display: grid; gap: 6px; }
+textarea, select, input[type=password] { font: inherit; font-size: 15px; color: var(--ink); background: var(--paper); border: 1px solid var(--line); border-radius: 8px; padding: 10px; width: 100%; }
+textarea { min-height: 64px; resize: vertical; }
+details summary { cursor: pointer; color: var(--ink-2); font-size: 14px; }
+
+/* Right: the answer */
+.for { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: var(--paper); border: 1px solid var(--line); }
+.for img { width: 64px; height: 44px; object-fit: cover; object-position: top; border-radius: 4px; border: 1px solid var(--line); background: #fff; flex: none; }
+.for div { display: grid; font-size: 14px; min-width: 0; }
+.for strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.for span { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.empty { color: var(--ink-2); padding: 48px 12px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+.empty strong { color: var(--ink); font-size: 17px; }
+
+.stamp { justify-self: start; font: 800 clamp(34px, 6vw, 52px)/1 var(--wide); font-stretch: 125%; letter-spacing: 0.02em; padding: 10px 18px 8px; border: 4px double currentColor; border-radius: 8px; transform: rotate(-2deg); }
+.stamp.BUY { color: var(--buy); background: var(--buy-bg); } .stamp.TRIAL { color: var(--test); background: var(--test-bg); }
+.stamp.WAIT { color: var(--wait); background: var(--wait-bg); } .stamp.REJECT { color: var(--no); background: var(--no-bg); }
+.stamp.in { animation: stamp .32s cubic-bezier(.2, .9, .3, 1.2) both; }
+@keyframes stamp { from { transform: rotate(-2deg) scale(1.25); opacity: 0; } to { transform: rotate(-2deg) scale(1); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .stamp.in, .bar i { animation: none; } }
+.why { font-size: 21px; line-height: 1.35; font-weight: 700; margin: 0; max-width: 60ch; }
+.money { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 12px; }
 @media (max-width: 560px) { .money { grid-template-columns: minmax(0, 1fr); } }
-.money > div { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; }
-.k { font: 600 11.5px/1.3 var(--mono); text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-.v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.rk { font-size: 16px; font-weight: 650; }
-.rk-ok { color: var(--buy); } .rk-info { color: var(--trial); } .rk-warn { color: var(--wait); }
-.how { margin: 6px 0 0; padding-top: 14px; border-top: 1px solid var(--line); font-size: 15px; }
-.banner { background: var(--trial-bg); color: var(--ink); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; font-size: 14px; }
+.money > div { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; align-content: start; }
+.k { font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.v { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rk { font-size: 17px; font-weight: 700; }
+.rk-ok { color: var(--buy); } .rk-info { color: var(--test); } .rk-warn { color: var(--wait); }
+.note { font-size: 14px; color: var(--ink-2); }
+.held, .stale { background: var(--wait-bg); color: var(--wait); border-radius: 8px; padding: 10px 12px; font-size: 14.5px; }
+.err { background: var(--no-bg); color: var(--no); border-radius: 8px; padding: 12px; font-size: 14.5px; white-space: pre-wrap; }
+
+.working { display: grid; gap: 14px; padding: 8px 0; }
+.working p { margin: 0; }
+.bar { height: 6px; border-radius: 3px; background: var(--soft); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 35%; background: var(--ink); border-radius: 3px; animation: slide 1.4s ease-in-out infinite; }
+@keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+.elapsed { font-variant-numeric: tabular-nums; color: var(--ink-2); font-size: 14px; }
+.plan { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 14.5px; display: grid; gap: 4px; }
+
+/* How it was checked */
+.how { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 14px; }
+.how ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.chip { display: inline-block; font: 12px/1.3 var(--code); background: var(--soft); color: var(--ink-2); border-radius: 4px; padding: 2px 6px; margin: 3px 4px 0 0; }
+.st { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 7px; border-radius: 4px; }
+.st-observed { color: var(--buy); background: var(--buy-bg); } .st-inferred { color: var(--wait); background: var(--wait-bg); }
+.st-unknown { color: var(--ink-2); background: var(--soft); }
+.ok { color: var(--buy); font-weight: 700; } .flag { color: var(--no); font-weight: 700; }
+.fixed { font-size: 12px; font-weight: 700; color: var(--test); margin-left: 6px; }
+.tw { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+thead th { font-size: 13px; color: var(--ink-2); font-weight: 600; background: var(--paper); }
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+td.ev { color: var(--ink-2); font-size: 13px; }
+td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.muted { color: var(--ink-2); font-size: 14px; }
+
+/* Footer for judges and developers */
+footer { border-top: 1px solid var(--line); padding-top: 18px; display: grid; gap: 10px; color: var(--ink-2); font-size: 14px; }
+.pipeline { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; counter-reset: p; }
+@media (max-width: 760px) { .pipeline { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.pipeline li { counter-increment: p; background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.pipeline b { display: block; color: var(--ink); }
+.pipeline b::before { content: counter(p) ". "; }
+footer a { color: inherit; }
 </style>
 </head>
 <body>
 <main class="wrap">
-  <header>
-    <h1>AI's Cart</h1>
-    <span class="tag">One picture. One question. A better purchase.</span>
-    <span class="mode" id="mode">checking server</span>
+  <header class="top">
+    <h1 class="brand">AI's Cart</h1>
+    <span class="tag">Check a checkout before you pay.</span>
+    <span class="mode" id="mode">Connecting…</span>
   </header>
   <div class="banner" id="mockBanner" role="note" hidden><strong>Sample mode.</strong> This public demo doesn't call Meta's models. It returns prepared answers for the three sample checkouts, so other screenshots come back as unknown. The live version runs Muse Spark and Muse Wonder on a private deployment, shown in our demo video.</div>
 
   <div class="grid">
-    <section class="card" aria-label="Your checkout">
-      <h2>Your checkout</h2>
-      <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a checkout screenshot">
-        <span id="dropText">Drop a checkout screenshot here, or click to choose one</span>
-        <img id="preview" alt="Selected screenshot" hidden>
+    <section class="panel" aria-labelledby="left-title">
+      <div class="panel-head">
+        <h2 id="left-title">Your purchase</h2>
+        <button type="button" class="ghost" id="reset">New purchase</button>
       </div>
-      <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
-      <div>
-        <div class="muted" style="margin-bottom:6px">Or try a sample (fictional stores):</div>
-        <div class="samples">
-          <button type="button" data-sample="checkout_01_domain">Domainly</button>
-          <button type="button" data-sample="checkout_02_trial">Sparkforge</button>
-          <button type="button" data-sample="checkout_03_cart">Cartwheel Office</button>
-        </div>
-      </div>
-      <label for="q">Your question
-        <textarea id="q">Should I complete this purchase?</textarea>
-      </label>
+      <ol class="steps">
+        <li>
+          <span class="step-title">Add the checkout screenshot</span>
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a checkout screenshot">
+            <span id="dropText">Drop a screenshot here, or click to choose one</span>
+            <img id="preview" alt="The checkout screenshot you chose" hidden>
+            <span class="picked" id="picked" hidden></span>
+          </div>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+          <div class="samples">
+            <span>Or try a sample from a fictional store:</span>
+            <button type="button" data-sample="checkout_01_domain" data-name="Domainly sample" aria-pressed="false">Domainly</button>
+            <button type="button" data-sample="checkout_02_trial" data-name="Sparkforge sample" aria-pressed="false">Sparkforge</button>
+            <button type="button" data-sample="checkout_03_cart" data-name="Cartwheel Office sample" aria-pressed="false">Cartwheel Office</button>
+          </div>
+        </li>
+        <li>
+          <label class="step-title" for="q">Ask your question</label>
+          <textarea id="q">Should I complete this purchase?</textarea>
+        </li>
+        <li>
+          <span class="step-title">Get the answer</span>
+          <button class="primary" id="go" disabled>Check before I buy</button>
+        </li>
+      </ol>
       <details>
         <summary>Settings</summary>
         <div style="display:grid;gap:10px;margin-top:10px">
-          <label for="review">Second review by Muse Wonder
+          <label for="review">Second look by Muse Wonder
             <select id="review">
               <option value="auto">Only when the checks flag something</option>
               <option value="always">Always</option>
               <option value="never">Never</option>
             </select>
           </label>
-          <label for="token">Service token (if the server requires one)
+          <label for="token">Access token (only if this server asks for one)
             <input type="password" id="token" autocomplete="off">
           </label>
         </div>
       </details>
-      <button class="primary" id="go" disabled>Check before I buy</button>
-      <div class="status" id="status" aria-live="polite"></div>
     </section>
 
-    <section class="card" aria-label="Result" id="result">
-      <div class="empty">Choose a screenshot and press <strong>Check before I buy</strong>. The answer shows what was read from the screen, what was worked out, and what is unknown.</div>
-    </section>
+    <section class="panel" aria-labelledby="right-title" aria-live="polite" id="result"></section>
   </div>
+
+  <footer>
+    <ol class="pipeline" aria-label="How AI's Cart checks a purchase">
+      <li><b>Read</b>Muse Spark 1.3 reads every price and term off the screenshot, marking each as observed, inferred or unknown.</li>
+      <li><b>Check</b>Plain code checks the math and looks for missing renewal prices.</li>
+      <li><b>Re-read</b>Muse Wonder 1.0 takes a second look at only the fields the checks flagged.</li>
+      <li><b>Decide</b>Muse Spark gives the answer from the checked facts. Code holds back any approval that fails a check.</li>
+    </ol>
+    <div>Built for the Meta Global AI Developer Hackathon, 2026. <a href="https://github.com/asgerami/ais-cart-pipeline">Source code on GitHub</a>. <span id="version"></span></div>
+  </footer>
 </main>
 
 <script>
+const PAGE_VERSION = "2026-11-03.4";
+const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const NAMES = {merchant:"Merchant", currency:"Currency", subtotal:"Subtotal", discounts:"Discounts", tax:"Tax",
   total_due_now:"Total due now", renewal_terms:"Renewal terms", trial_terms:"Trial terms",
   cancellation_terms:"Cancellation terms", other_conditions:"Other conditions"};
 const ITEM = {name:"Name", quantity:"Quantity", term:"Term", line_total:"Line total"};
-let image = null;
-let token = "";
-try { token = sessionStorage.getItem("aiscart-token") || ""; } catch (e) {}
-$("token").value = token;
+// What a shopper sees. The API's decision codes stay BUY / TRIAL / WAIT / REJECT; only the labels change here.
+const LABEL = {BUY: "BUY", TRIAL: "TEST", WAIT: "WAIT", REJECT: "DON'T BUY"};
+
+// The answer on screen must always belong to the screenshot on screen. Every change of screenshot,
+// and every new check, gets a new run number; a reply for an older run is thrown away.
+const state = {image: null, name: "", run: 0, pick: 0, controller: null, result: null, checkedQuestion: ""};
+let serverMode = "";
+$("version").textContent = `Page version ${PAGE_VERSION}.`;
+try { $("token").value = sessionStorage.getItem("aiscart-token") || ""; } catch (e) {}
 
 fetch("/api/health").then(r => r.json()).then(h => {
-  $("mode").textContent = h.mode === "live" ? "live: Meta models" : h.mode === "mock" ? "mock: sample answers" : "not configured";
+  serverMode = h.mode;
+  $("mode").textContent = h.mode === "live" ? "Live: Meta models" : h.mode === "mock" ? "Sample answers" : "Not configured";
+  $("mode").classList.toggle("live", h.mode === "live");
   $("mockBanner").hidden = h.mode !== "mock";
-}).catch(() => { $("mode").textContent = "server unreachable"; });
+}).catch(() => { $("mode").textContent = "Server unreachable"; });
 
-function setImage(dataUrl) {
-  image = dataUrl;
+function cancelRun() {
+  state.run += 1;
+  if (state.controller) state.controller.abort();
+  state.controller = null;
+  state.result = null;
+  $("go").disabled = !state.image;
+}
+
+function forStrip(note) {
+  return `<div class="for"><img src="${state.image}" alt=""><div><strong>${esc(state.name)}</strong><span>${esc(note)}</span></div></div>`;
+}
+
+function showEmpty() {
+  $("result").innerHTML = `<h2 id="right-title" hidden>Answer</h2><div class="empty"><strong>Your answer will appear here</strong>
+    Add a checkout screenshot, or pick a sample, then press Check before I buy.</div>`;
+}
+
+function showReady() {
+  $("result").innerHTML = `<h2 id="right-title">Answer</h2>${forStrip("Not checked yet")}
+    <div class="empty"><strong>Ready to check</strong>Press Check before I buy to get an answer for this screenshot.</div>`;
+}
+
+function beginSelection() {
+  // Called the moment a new screenshot is picked, before it has loaded: the old answer goes at once.
+  cancelRun();
+  $("go").disabled = true;
+  $("result").innerHTML = `<h2 id="right-title">Answer</h2><div class="empty"><strong>Loading the screenshot…</strong></div>`;
+  return ++state.pick;
+}
+
+function setImage(dataUrl, name) {
+  cancelRun();
+  state.image = dataUrl; state.name = name;
   $("preview").src = dataUrl; $("preview").hidden = false;
+  $("picked").textContent = name; $("picked").hidden = false;
   $("dropText").textContent = "Click to choose a different screenshot";
   $("go").disabled = false;
+  showReady();
+}
+
+function markSample(id) {
+  document.querySelectorAll("[data-sample]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.sample === id)));
+}
+
+function resetAll() {
+  cancelRun();
+  state.pick += 1;
+  state.image = null; state.name = "";
+  $("preview").hidden = true; $("preview").removeAttribute("src");
+  $("picked").hidden = true; $("picked").textContent = "";
+  $("dropText").textContent = "Drop a screenshot here, or click to choose one";
+  $("file").value = "";
+  $("q").value = DEFAULT_Q;
+  markSample(null);
+  $("go").disabled = true;
+  showEmpty();
 }
 
 async function shrink(file) {
@@ -167,54 +297,81 @@ async function shrink(file) {
   return c.toDataURL("image/jpeg", 0.9);
 }
 
-async function useFile(file) {
-  if (!file || !file.type.startsWith("image/")) { $("status").textContent = "Choose a PNG, JPEG, WebP or GIF image."; return; }
-  setImage(await shrink(file));
-  $("status").textContent = "";
+async function useFile(file, name, sampleId, pick = beginSelection()) {
+  if (!file || !file.type.startsWith("image/")) {
+    $("go").disabled = !state.image;
+    $("result").innerHTML = `<h2 id="right-title">Answer</h2><div class="err">That file isn't an image. Choose a PNG, JPEG, WebP or GIF screenshot.</div>`;
+    return;
+  }
+  const url = await shrink(file);
+  if (pick !== state.pick) return;                  // a later pick replaced this one
+  markSample(sampleId || null);
+  setImage(url, name || file.name || "Your screenshot");
 }
 
 $("drop").onclick = () => $("file").click();
 $("drop").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file").click(); } };
-$("file").onchange = e => useFile(e.target.files[0]);
+$("file").onchange = e => { if (e.target.files[0]) useFile(e.target.files[0]); };
 $("drop").ondragover = e => { e.preventDefault(); $("drop").classList.add("over"); };
 $("drop").ondragleave = () => $("drop").classList.remove("over");
 $("drop").ondrop = e => { e.preventDefault(); $("drop").classList.remove("over"); useFile(e.dataTransfer.files[0]); };
 document.querySelectorAll("[data-sample]").forEach(b => b.onclick = async () => {
+  const pick = beginSelection();
+  markSample(b.dataset.sample);
   const blob = await (await fetch(`/eval/samples/${b.dataset.sample}.png`)).blob();
-  useFile(new File([blob], b.dataset.sample + ".png", {type: "image/png"}));
+  if (pick !== state.pick) return;
+  useFile(new File([blob], b.dataset.sample + ".png", {type: "image/png"}), b.dataset.name, b.dataset.sample, pick);
 });
+$("reset").onclick = resetAll;
+$("q").oninput = () => {
+  const note = $("stale");
+  if (note) note.hidden = $("q").value.trim() === state.checkedQuestion.trim();
+};
 
 $("go").onclick = async () => {
-  if (!image) return;
-  token = $("token").value.trim();
+  if (!state.image) return;
+  cancelRun();
+  const run = state.run, controller = new AbortController();
+  state.controller = controller;
+  const token = $("token").value.trim();
   try { sessionStorage.setItem("aiscart-token", token); } catch (e) {}
+  const question = $("q").value;
   $("go").disabled = true;
   const t0 = Date.now();
-  const tick = setInterval(() => { $("status").textContent = `Reading the screenshot and checking it… ${Math.round((Date.now() - t0) / 1000)} s (live runs take about a minute)`; }, 500);
+  $("result").innerHTML = `<h2 id="right-title">Answer</h2>${forStrip("Checking now")}
+    <div class="working" role="status">
+      <p><strong>Checking this purchase.</strong> ${serverMode === "mock" ? "Sample answers come back in a second." : "Live checks take about a minute."}</p>
+      <div class="bar" aria-hidden="true"><i></i></div>
+      <div class="elapsed" id="elapsed">0 s</div>
+      <ol class="plan"><li>Read every price and term on the screenshot</li><li>Check the math and the renewal price</li>
+        <li>Take a second look at anything flagged</li><li>Decide, then check the decision</li></ol>
+    </div>`;
+  const tick = setInterval(() => { const el = $("elapsed"); if (el && run === state.run) el.textContent = `${Math.round((Date.now() - t0) / 1000)} s`; }, 500);
   try {
     const headers = {"Content-Type": "application/json"};
     if (token) headers.Authorization = `Bearer ${token}`;
-    const resp = await fetch("/api/analyze", {method: "POST", headers,
-      body: JSON.stringify({image, question: $("q").value, review: $("review").value})});
+    const resp = await fetch("/api/analyze", {method: "POST", headers, signal: controller.signal,
+      body: JSON.stringify({image: state.image, question, review: $("review").value})});
     const data = await resp.json();
-    if (!resp.ok) throw data.error || {message: `HTTP ${resp.status}`};
-    render(data);
-    $("status").textContent = `Done in ${((Date.now() - t0) / 1000).toFixed(1)} s.`;
+    if (run !== state.run) return;                      // a newer screenshot or check replaced this one
+    if (!resp.ok) throw data.error || {message: `The server answered with HTTP ${resp.status}.`};
+    state.result = data; state.checkedQuestion = question;
+    render(data, question, (Date.now() - t0) / 1000);
   } catch (err) {
-    $("result").innerHTML = `<div class="err">${esc(err.message || err)}${err.step ? `\nStep: ${esc(err.step)}` : ""}${err.http_status ? ` (HTTP ${esc(err.http_status)})` : ""}</div>`;
-    $("status").textContent = "";
+    if (run !== state.run || err.name === "AbortError") return;
+    const msg = err.code === "unauthorized" || err.message?.includes("token")
+      ? "This server needs an access token. Add it under Settings and check again." : (err.message || String(err));
+    $("result").innerHTML = `<h2 id="right-title">Answer</h2>${forStrip("Not checked")}
+      <div class="err">${esc(msg)}${err.step ? `\nFailed at: ${esc(err.step)}` : ""}${err.http_status ? ` (HTTP ${esc(err.http_status)})` : ""}</div>`;
   } finally {
     clearInterval(tick);
-    $("go").disabled = false;
+    if (run === state.run) { state.controller = null; $("go").disabled = !state.image; }
   }
 };
 
 function chip(f) { return `<span class="chip">${esc(f)}</span>`; }
 function status(s) { return `<span class="st st-${esc(s)}">${esc(s)}</span>`; }
 function money(n) { return n == null ? "n/a" : "$" + n.toFixed(4); }
-
-// What a shopper sees. The API's decision codes stay BUY / TRIAL / WAIT / REJECT; only the labels change here.
-const LABEL = {BUY: "BUY", TRIAL: "TEST", WAIT: "WAIT", REJECT: "DON'T BUY"};
 const known = f => f && f.status !== "unknown" && f.value ? f.value : null;
 function recurring(r) {
   // Uses the code check on renewal prices, so this summary never claims more than the checks found.
@@ -225,47 +382,53 @@ function recurring(r) {
   return {cls: "info", text: trial || renew, note: trial ? (known(r.facts.cancellation_terms) || "") : ""};
 }
 
-function render(r) {
+function render(r, question, secs) {
   const v = r.verdict, fixed = new Set((r.review.changes || []).map(c => c.field));
   const failed = r.verdict_checks.filter(c => !c.ok);
-  const row = (path, label, f) => f ? `<tr><th scope="row">${esc(label)}${fixed.has(path) ? '<span class="fixed">fixed by review</span>' : ""}</th>
+  const row = (path, label, f) => f ? `<tr><th scope="row">${esc(label)}${fixed.has(path) ? '<span class="fixed">fixed on second look</span>' : ""}</th>
     <td>${status(f.status)}</td><td>${f.value == null ? '<span class="muted">not on screen</span>' : esc(f.value)}</td><td class="ev">${esc(f.evidence)}</td></tr>` : "";
   let facts = Object.keys(NAMES).map(k => row(k, NAMES[k], r.facts[k])).join("");
   (r.facts.line_items || []).forEach((it, i) => {
     facts += Object.keys(ITEM).map(k => row(`line_items[${i}].${k}`, `Item ${i + 1}: ${ITEM[k]}`, it[k])).join("");
   });
   const math = r.checks.math.map(c => `<li><span class="${c.ok ? "ok" : "flag"}">${c.ok ? "Pass" : "Flag"}</span> ${esc(c.check)} <span class="muted">(${esc(c.detail)})</span></li>`).join("") || "<li class='muted'>No math checks apply.</li>";
-  const changes = (r.review.changes || []).map(c => `<li>${chip(c.field)} ${esc(c.before?.value ?? "empty")} → <strong>${esc(c.after.value ?? "unknown")}</strong> <span class="muted">${esc(c.reason || "")}</span></li>`).join("");
+  const changes = (r.review.changes || []).map(c => `<li>${chip(c.field)} ${esc(c.before?.value ?? "empty")} to <strong>${esc(c.after.value ?? "unknown")}</strong> <span class="muted">${esc(c.reason || "")}</span></li>`).join("");
   const calls = r.calls.map(c => `<tr><td>${esc(c.step)}</td><td>${esc(c.model)}</td><td class="num">${c.latency_s ?? ""} s</td>
     <td class="num">${c.input_tokens ?? ""} / ${c.output_tokens ?? ""}</td><td class="num">${money(c.est_cost_usd)}</td></tr>`).join("");
   const rec = recurring(r);
+  const when = new Date().toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
   $("result").innerHTML = `
-    <div class="answer">
-      <span class="label d-${esc(v.decision)}">${esc(LABEL[v.decision] || v.decision)}</span>
-      <p class="why">${esc(v.headline)}</p>
-      <div class="money">
-        <div><span class="k">Due today</span><span class="v">${esc(known(r.facts.total_due_now) || "Not shown")}</span></div>
-        <div><span class="k">Recurring billing</span><span class="rk rk-${rec.cls}">${esc(rec.text)}</span>${rec.note ? `<span class="muted">${esc(rec.note)}</span>` : ""}</div>
-      </div>
-      ${v.held_back ? `<div class="held">Held back: the model recommended <strong>${esc(LABEL[v.model_decision] || v.model_decision)}</strong>, but its answer failed our checks, so it is shown as WAIT.</div>` : ""}
+    <h2 id="right-title">Answer</h2>
+    ${forStrip(`Checked at ${when}, in ${secs.toFixed(1)} s`)}
+    <div class="stamp in ${esc(v.decision)}">${esc(LABEL[v.decision] || v.decision)}</div>
+    <p class="why">${esc(v.headline)}</p>
+    <div class="money">
+      <div><span class="k">Due today</span><span class="v">${esc(known(r.facts.total_due_now) || "Not shown")}</span></div>
+      <div><span class="k">Recurring billing</span><span class="rk rk-${rec.cls}">${esc(rec.text)}</span>${rec.note ? `<span class="note">${esc(rec.note)}</span>` : ""}</div>
     </div>
-    <h2 class="how">How AI's Cart checked this</h2>
-    <div class="verdict">
+    ${v.held_back ? `<div class="held">Held back: the model said <strong>${esc(LABEL[v.model_decision] || v.model_decision)}</strong>, but its answer failed our checks, so it is shown as WAIT.</div>` : ""}
+    <div class="stale" id="stale" hidden>You changed the question. Press Check before I buy to update this answer.</div>
+    <div class="how">
+      <h3>Why</h3>
       <ul>${v.reasons.map(x => `<li>${esc(x.text)}<div>${(x.fields || []).map(chip).join("")}</div></li>`).join("")}</ul>
-      ${v.check_before_buying.length ? `<div><h3>Check before buying</h3><ul>${v.check_before_buying.map(x => `<li>${esc(x)}</li>`).join("")}</ul></div>` : ""}
+      ${v.check_before_buying.length ? `<h3>Check before you pay</h3><ul>${v.check_before_buying.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
       ${v.held_back ? `<details><summary>The model's original answer (not shown as the verdict)</summary><p>${esc(v.model_headline)}</p><ul>${(v.model_reasons || []).map(x => `<li>${esc(x.text)}</li>`).join("")}</ul></details>` : ""}
-      <div class="muted">Decision code: ${esc(v.decision)}. Confidence: ${esc(v.confidence)}. Verdict checks: ${failed.length ? `<span class="flag">${failed.length} failed</span>: ${failed.map(c => esc(c.check + " (" + c.detail + ")")).join("; ")}` : '<span class="ok">all passed</span> (every cited field exists, every amount traces to the facts)'}</div>
+      <div class="muted">Decision code ${esc(v.decision)}, confidence ${esc(v.confidence)}. Checks on the answer: ${failed.length ? `<span class="flag">${failed.length} failed</span>: ${failed.map(c => esc(c.check + " (" + c.detail + ")")).join("; ")}` : '<span class="ok">all passed</span> (every cited field exists, every amount traces to the screenshot)'}.</div>
     </div>
-    <h3>What was read from the screenshot</h3>
-    <div class="tw"><table><thead><tr><th>Field</th><th>Status</th><th>Value</th><th>Evidence</th></tr></thead><tbody>${facts}</tbody></table></div>
-    <h3>Code checks</h3><ul>${math}</ul>
-    <h3>Second review</h3>
-    <div class="muted">${r.review.ran ? `${esc(r.review.model)} re-read ${Object.keys(r.checks.fields_flagged).length} flagged field(s): ${changes ? "" : "no changes."}` : `Skipped: ${esc(r.review.skipped_because)}.`}</div>
-    ${changes ? `<ul>${changes}</ul>` : ""}
-    <h3>Model calls</h3>
-    <div class="tw"><table><thead><tr><th>Step</th><th>Model</th><th>Time</th><th>Tokens in / out</th><th>Est. cost</th></tr></thead><tbody>${calls}</tbody></table></div>
-    <div class="muted">Total ${r.total_latency_s ?? "?"} s, est. ${money(r.total_est_cost_usd)}. Mode: ${esc(r.mode)}. Prompt versions: ${Object.entries(r.versions).map(([k, x]) => esc(k + " " + x)).join(", ")}.</div>`;
+    <div class="how">
+      <h3>What was read from the screenshot</h3>
+      <div class="tw"><table><thead><tr><th>Field</th><th>Status</th><th>Value</th><th>Evidence</th></tr></thead><tbody>${facts}</tbody></table></div>
+      <h3>Code checks</h3><ul>${math}</ul>
+      <h3>Second look</h3>
+      <div class="muted">${r.review.ran ? `${esc(r.review.model)} re-read ${Object.keys(r.checks.fields_flagged).length} flagged field(s)${changes ? ":" : " and changed nothing."}` : `Skipped: ${esc(r.review.skipped_because)}.`}</div>
+      ${changes ? `<ul>${changes}</ul>` : ""}
+      <h3>Model calls</h3>
+      <div class="tw"><table><thead><tr><th>Step</th><th>Model</th><th>Time</th><th>Tokens in / out</th><th>Est. cost</th></tr></thead><tbody>${calls}</tbody></table></div>
+      <div class="muted">Total ${r.total_latency_s ?? "?"} s, est. ${money(r.total_est_cost_usd)}. Mode: ${esc(r.mode)}. Prompt versions: ${Object.entries(r.versions).map(([k, x]) => esc(k + " " + x)).join(", ")}.</div>
+    </div>`;
 }
+
+showEmpty();
 </script>
 </body>
 </html>
