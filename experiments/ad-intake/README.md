@@ -95,3 +95,20 @@ Evidence: user-provided screenshots of the same genuine Kajabi Facebook ad and t
 - Added an explainable **potential capability overlap** screen against tools explicitly saved in the browser inventory. Ad claims trigger limited capability categories; matching saved names are displayed with a caution to verify actual functionality, plan limits and pricing.
 - No claim of automatic subscription detection, verified features, universal tool coverage or confirmed redundancy. No automatic purchase approval.
 - Still to test manually: Safari scroll position when the button is pressed, same-screen loading indicator, Kajabi with Squarespace explicitly saved, Kajabi with no saved tools, Explee with an outreach tool saved, mobile behavior, and unchanged checkout/goal workflows.
+
+## A5 — Live user-observed result, 2026-11-21
+Evidence: user-provided Safari screenshots of real Kajabi advertisement analysis in experimental A5 preview, plus user's explicit confirmation of scrolling behavior.
+
+- **PASS — immediate scroll:** User reports that clicking the blue **Review this ad** button immediately jumped to the answer area. This confirms the intended scroll behavior in that browser session; the intermediate loading text was not independently captured.
+- **PASS — advertisement extraction:** Kajabi identified, content/website/audience/product sales claims and 30-day trial extracted; unverified post-trial price, terms and destination URL surfaced.
+- **PASS — browser inventory association:** Squarespace shown as one saved tool; output identified potential website building, digital product/course sales, and email marketing/audience growth overlap. It explicitly cautioned that this is preliminary screening, not feature-by-feature verification.
+- **Open:** duplicated trial offer text; actual Squarespace plan and feature eligibility not checked; mobile behavior not checked; checkout/goal regression not rerun.
+
+## A6 — Explee AI paired inventory experiment (planned, not yet executed)
+- **Source:** original user-provided Explee AI advertisement screenshot (not a synthetic fixture).
+- **Ad claims to look for, not independently verified:** prospect discovery, outreach emails, starting conversations, and $30 trial credits. Do not assume a subscription price or promise successful booked meetings.
+- **Controlled baseline:** In **I saw an ad**, upload the Explee image with an empty browser tool inventory; review the extraction and missing-cost/terms flags.
+- **Treatment:** Add a real already-owned lead-generation or outreach tool to **Tools you already have** and rerun the identical ad, keeping the optional goal unchanged. Record the exact tool name and plan, if known.
+- **Expected:** A6 should flag a potential functional overlap only when the saved tool matches a relevant capability. It must not imply that trial credits are a price, or claim verified feature parity.
+- **Capture:** screenshot of the ad extraction, overlap section, warnings, and whether the page scrolls immediately.
+- **Status:** protocol documented; pending live browser test and results.
