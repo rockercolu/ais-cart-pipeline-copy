@@ -112,3 +112,12 @@ Evidence: user-provided Safari screenshots of real Kajabi advertisement analysis
 - **Expected:** A6 should flag a potential functional overlap only when the saved tool matches a relevant capability. It must not imply that trial credits are a price, or claim verified feature parity.
 - **Capture:** screenshot of the ad extraction, overlap section, warnings, and whether the page scrolls immediately.
 - **Status:** protocol documented; pending live browser test and results.
+
+## A6 — live Explee baseline and A7 UI/routing correction, 2026-11-21
+User-provided Safari screenshots from the experimental preview show:
+- **PASS** Explee AI identified, claims about finding prospects, writing emails and booking calls extracted.
+- **PASS** The offer was described as **$30 in credits** rather than a subscription price. Unknown credit expiration, coverage, post-credit pricing, eligibility and terms were flagged.
+- **FALSE POSITIVE** With Squarespace still in saved inventory (one tool), the preliminary matcher classified **website building: Squarespace**, apparently from the ad's instruction to provide a website link. Supplying a website URL is not a claim that the advertised service builds websites. This is not a valid capability overlap.
+- The A6 no-owned-tools baseline was **not** run; do not label this a controlled baseline pass.
+- **A7 code changes:** add three animated bouncing dots with accessible status text during ad image analysis; respect reduced-motion preference. Tighten website-building detection to actual construction claims, and recognize writing emails/booking calls as outreach claims. No API or secret changes.
+- **Next manual verification:** upload same Explee screenshot with Squarespace still saved and confirm no website-building overlap; then add a genuinely owned outreach tool and check for a *potential* prospecting/outreach overlap; confirm dots appear while loading and stop when results appear. Checkout and goal-mode regressions remain open.
