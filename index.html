@@ -232,6 +232,9 @@ footer h2 { font-size: 15px; color: var(--ink); }
 footer a { color: inherit; }
 /* Visible progress while a live ad is being analyzed. */
 .ad-thinking { display:flex; align-items:center; gap:12px; padding:12px 0; }
+.ad-loading { min-height: 360px; display:flex; flex-direction:column; justify-content:space-between; }
+.ad-loading-bottom { display:flex; justify-content:flex-start; align-items:center; gap:12px; border-top:1px solid var(--line); padding-top:16px; margin-top:32px; }
+.ad-loading-bottom .ad-dots { min-width:54px; }
 .ad-dots { display:inline-flex; align-items:center; gap:5px; min-width:54px; }
 .ad-dots span { display:block; width:9px; height:9px; border-radius:50%; background:var(--primary); animation:ad-bounce 1s ease-in-out infinite; }
 .ad-dots span:nth-child(2) { animation-delay:.15s; }
@@ -798,7 +801,7 @@ const AD_CAPABILITIES = [
   {label:"website building", pattern:/\b(build (?:your |a |my )?websites?|create (?:your |a |my )?websites?|website builder|build (?:web |landing )?pages?|site builder)\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
   {label:"digital product or course sales", pattern:/\b(courses?|digital products?|sell your products|online courses?)\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
   {label:"email marketing and audience growth", pattern:/\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
-  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book(?:s|ing)? (?:the |sales )?calls?|book(?:s|ing)? meetings|writes? (?:the |outreach )?emails?|finds? (?:the )?people who need)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
+  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book(?:s|ing)? (?:the |sales )?calls?|book(?:s|ing)? meetings|writes? (?:the |outreach )?emails?|finds? (?:the )?people who need|writes? (?:the )?emails?|books? (?:the )?calls?)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
   {label:"creative content production", pattern:/\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
 ];
 function adOwnedComparison(x, goal) {
@@ -858,7 +861,7 @@ $("goAd").onclick = async () => {
   if (adImageUrl) {
     const run = state.run;
     $("goAd").disabled = true;
-    $("result").innerHTML = '<div class="empty" role="status" aria-live="polite"><div class="ad-thinking"><span class="ad-dots" aria-hidden="true"><span></span><span></span><span></span></span><strong>Reading the advertisement…</strong></div><p>Checking the claims and your saved tools. Promotional claims are not verified facts.</p></div>';
+    $("result").innerHTML = '<div class="ad-loading" role="status" aria-live="polite"><div><strong>Reading the advertisement…</strong><p>Checking the claims and your saved tools. Promotional claims are not verified facts.</p></div><div class="ad-loading-bottom"><span class="ad-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="muted">Zero is working…</span></div></div>';
     showAnswerPanel();
     try {
       const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
