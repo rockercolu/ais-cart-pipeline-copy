@@ -116,6 +116,7 @@ def handle(method,action,headers,raw):
             c=config();account_keys=('SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','PILOT_ORIGIN','PILOT_ALLOWED_EMAILS')
             return response(200,{'testOnly':True,'offer':OFFER,'accountsConfigured':all(c[k] for k in account_keys),
                 'checkoutConfigured':all(c[k] for k in account_keys) and c['STRIPE_SECRET_KEY'].startswith('sk_test_') and bool(c['STRIPE_WEBHOOK_SECRET']),
+                'checkoutSetupChecks':{'accountSettingsPresent':all(c[k] for k in account_keys),'stripeTestKeyFormat':c['STRIPE_SECRET_KEY'].startswith('sk_test_') and len(c['STRIPE_SECRET_KEY'])>12,'webhookSecretFormat':c['STRIPE_WEBHOOK_SECRET'].startswith('whsec_') and len(c['STRIPE_WEBHOOK_SECRET'])>12},
                 'missing':[k for k,v in c.items() if not v]})
         if action=='webhook' and method=='POST':return response(200,webhook(headers,raw))
         allowed={'signup':{'POST'},'login':{'POST'},'logout':{'POST'},'session':{'GET'},'inventory':{'GET','PUT'},'history':{'GET','DELETE'},'checkout':{'POST'},'analyze':{'POST'}}
