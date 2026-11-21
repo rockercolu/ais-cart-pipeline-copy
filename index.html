@@ -787,11 +787,11 @@ function render(r, question, secs) {
 // Conservative, explainable capability comparison. A potential overlap is NOT a verified feature match.
 // Only consider tools explicitly saved in this browser; never imply a user owns a tool from the library.
 const AD_CAPABILITIES = [
-  {label:"website building", pattern:/\\b(websites?|website builder|web pages?|landing pages?|site builder|build your website)\\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
-  {label:"digital product or course sales", pattern:/\\b(courses?|digital products?|sell your products|online courses?)\\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
-  {label:"email marketing and audience growth", pattern:/\\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
-  {label:"prospect discovery and outreach", pattern:/\\b(prospects?|lead generation|outreach|cold emails?|find customers|book meetings)\\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
-  {label:"creative content production", pattern:/\\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
+  {label:"website building", pattern:/\b(websites?|website builder|web pages?|landing pages?|site builder|build your website)\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
+  {label:"digital product or course sales", pattern:/\b(courses?|digital products?|sell your products|online courses?)\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
+  {label:"email marketing and audience growth", pattern:/\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
+  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book meetings)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
+  {label:"creative content production", pattern:/\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
 ];
 function adOwnedComparison(x, goal) {
   const product = String(x.product || x.advertiser || "").trim();
