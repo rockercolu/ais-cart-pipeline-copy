@@ -249,6 +249,7 @@ footer a { color: inherit; }
       </div>
       <div class="modes" role="tablist" aria-label="How do you want to start?">
         <button type="button" role="tab" id="modeShot" aria-selected="true" aria-controls="shotSteps">I have a screenshot</button>
+        <button type="button" role="tab" id="modeAd" aria-selected="false" aria-controls="adSteps">I saw an ad</button>
         <button type="button" role="tab" id="modeGoal" aria-selected="false" aria-controls="goalSteps">I don't have a cart yet</button>
       </div>
       <ol class="steps" id="shotSteps" role="tabpanel" aria-labelledby="modeShot">
@@ -280,6 +281,19 @@ footer a { color: inherit; }
           <button class="primary" id="go" disabled>Check before I buy</button>
         </li>
       </ol>
+      <div class="goal-steps" id="adSteps" role="tabpanel" aria-labelledby="modeAd" hidden>
+        <label class="step-title" for="adFile">Upload an advertisement screenshot</label>
+        <input id="adFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif">
+        <img id="adPreview" alt="Your advertisement screenshot" style="max-width:100%;max-height:250px;object-fit:contain" hidden>
+        <p class="hint">Experimental intake. We do not automatically read ad images yet. Supply the advertiser and claims below; nothing is uploaded or purchased.</p>
+        <label class="step-title" for="adName">Advertiser or product name</label>
+        <input id="adName" type="text" maxlength="100" placeholder="e.g. Kajabi">
+        <label class="step-title" for="adClaim">What does the ad promise?</label>
+        <textarea id="adClaim" maxlength="1000" placeholder="Copy the main promise and any trial or price terms"></textarea>
+        <label class="step-title" for="adGoal">What would you use it for? (optional)</label>
+        <input id="adGoal" type="text" maxlength="250" placeholder="e.g. find customers for my startup">
+        <button class="primary" type="button" id="goAd">Review this ad</button>
+      </div>
       <div class="goal-steps" id="goalSteps" role="tabpanel" aria-labelledby="modeGoal" hidden>
         <label class="step-title" for="goalText">Tell us what you're trying to do</label>
         <textarea id="goalText" maxlength="500" placeholder="In your own words. For example: I need to get more people to sign up on my website. Where do I start?"></textarea>
@@ -331,7 +345,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-15.1";
+const PAGE_VERSION = "2026-11-20.ad-intake-A1";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -528,17 +542,22 @@ function setMode(mode) {
   state.mode = mode;
   $("modeShot").setAttribute("aria-selected", String(mode === "shot"));
   $("modeGoal").setAttribute("aria-selected", String(mode === "goal"));
+  $("modeAd").setAttribute("aria-selected", String(mode === "ad"));
   $("shotSteps").hidden = mode !== "shot";
   $("goalSteps").hidden = mode !== "goal";
-  if (mode === "goal") { $("ownedBox").open = true; showEmpty(); $("goalText").focus(); }
+  $("adSteps").hidden = mode !== "ad";
+  if (mode === "ad") { showEmpty(); $("adName").focus(); }
+  else if (mode === "goal") { $("ownedBox").open = true; showEmpty(); $("goalText").focus(); }
   else if (state.image) showReady(); else showEmpty();
 }
 $("modeShot").onclick = () => setMode("shot");
 $("modeGoal").onclick = () => setMode("goal");
+$("modeAd").onclick = () => setMode("ad");
 document.querySelector(".modes").onkeydown = e => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
-  const next = state.mode === "shot" ? "goal" : "shot";
-  setMode(next); $(next === "goal" ? "modeGoal" : "modeShot").focus();
+  const order = ["shot", "ad", "goal"];
+  const next = order[(order.indexOf(state.mode) + (e.key === "ArrowRight" ? 1 : 2)) % 3];
+  setMode(next); $({shot:"modeShot",ad:"modeAd",goal:"modeGoal"}[next]).focus();
 };
 
 // ---------- Tools the shopper already has. Kept in this browser; the page works without storage. ----------
@@ -755,6 +774,42 @@ function render(r, question, secs) {
   };
 }
 
+// Ad intake A1: manual evidence capture, intentionally separate from checkout verdict API.
+let adImageUrl = null;
+$("adFile").onchange = async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  if (!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)) {
+    $("result").innerHTML = '<div class="err">Please select an image.</div>'; return;
+  }
+  const pick = ++state.pick;
+  const data = await shrink(file);
+  if (pick !== state.pick || state.mode !== "ad") return;
+  adImageUrl = data;
+  $("adPreview").src = data; $("adPreview").hidden = false;
+  showEmpty();
+};
+$("goAd").onclick = () => {
+  cancelRun();
+  const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim();
+  if (!name || !claim) {
+    $("result").innerHTML = '<div class="err">Enter the advertiser and its advertised claim first.</div>'; return;
+  }
+  const duplicates = owned.filter(x => x.toLowerCase() === name.toLowerCase());
+  $("result").innerHTML = `<h2 id="right-title">Advertisement review — experimental</h2>
+    <div class="glance"><p class="line"><span class="stamp in WAIT">RESEARCH</span><span class="action">Verify before clicking, trying or buying.</span></p></div>
+    <p><strong>Advertiser:</strong> ${esc(name)}</p>
+    <p><strong>Advertised claim (user-transcribed; unverified):</strong> ${esc(claim)}</p>
+    ${goal ? `<p><strong>Your goal:</strong> ${esc(goal)}</p>` : ""}
+    <p><strong>Owned-tool check:</strong> ${duplicates.length ? "This product name already appears in your owned inventory." : "No exact name match in your owned inventory. Similar tools have not yet been checked."}</p>
+    <div class="how"><h3>Before proceeding</h3><ul>
+      <li>Confirm pricing, trial renewal and cancellation terms on the official website.</li>
+      <li>Verify the advertised features independently; this is a claim, not a tested capability.</li>
+      <li>Compare existing tools before adding another subscription.</li>
+    </ul></div>
+    <p class="muted">This prototype does not perform OCR, web research, or a model evaluation. No approval to buy or start a trial is given.</p>`;
+  showAnswerPanel();
+};
 showEmpty();
 </script>
 </body>
