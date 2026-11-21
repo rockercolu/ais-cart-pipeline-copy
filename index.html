@@ -351,7 +351,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-20.ad-intake-A4";
+const PAGE_VERSION = "2026-11-21.ad-intake-A5";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -387,10 +387,12 @@ function cancelRun() {
 }
 
 function showAnswerPanel() {
-  // On a phone the answer sits below the form: bring it into view so the decision is the first thing seen.
-  if (!matchMedia("(max-width: 880px)").matches) return;
-  // An instant jump: a smooth scroll can be cut short when the page changes under it, leaving the answer off screen.
-  $("result").scrollIntoView({behavior: "auto", block: "start"});
+  // On desktop and mobile, take the user to the answer instead of leaving them at the button.
+  // Scroll after DOM content is updated, including the initial loading state.
+  requestAnimationFrame(() => {
+    const result = $("result");
+    if (result) result.scrollIntoView({behavior: "auto", block: "start"});
+  });
 }
 
 function forStrip(note) {
@@ -782,6 +784,33 @@ function render(r, question, secs) {
   };
 }
 
+// Conservative, explainable capability comparison. A potential overlap is NOT a verified feature match.
+// Only consider tools explicitly saved in this browser; never imply a user owns a tool from the library.
+const AD_CAPABILITIES = [
+  {label:"website building", pattern:/\\b(websites?|website builder|web pages?|landing pages?|site builder|build your website)\\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
+  {label:"digital product or course sales", pattern:/\\b(courses?|digital products?|sell your products|online courses?)\\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
+  {label:"email marketing and audience growth", pattern:/\\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
+  {label:"prospect discovery and outreach", pattern:/\\b(prospects?|lead generation|outreach|cold emails?|find customers|book meetings)\\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
+  {label:"creative content production", pattern:/\\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
+];
+function adOwnedComparison(x, goal) {
+  const product = String(x.product || x.advertiser || "").trim();
+  const exact = owned.filter(t => t.toLowerCase() === product.toLowerCase());
+  const claims = (x.claims || []).map(c => String(c.text || ""));
+  const claimText = claims.join(" ") + " " + (x.offers || []).join(" ");
+  const overlaps = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => ({
+    capability:c.label,
+    tools:owned.filter(t => c.tools.some(n => n.toLowerCase() === t.toLowerCase()) && t.toLowerCase() !== product.toLowerCase())
+  })).filter(c => c.tools.length);
+  const assessed = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => c.label);
+  return `<h3>Compare with tools you already have</h3>
+    ${goal ? `<p><strong>Your intended use:</strong> ${esc(goal)}</p>` : '<p class="muted">Add what you would use it for to make the comparison more useful.</p>'}
+    ${!owned.length ? '<p>No tools saved in your browser inventory yet. Expand “Tools you already have” to add them, then review this ad again.</p>' : ""}
+    ${exact.length ? `<p><strong>Already listed:</strong> ${esc(exact.join(", "))} is in your inventory. Check whether you are already subscribed before buying again.</p>` : ""}
+    ${overlaps.length ? `<p><strong>Potential functional overlap — verify before buying:</strong></p><ul>${overlaps.map(c=>`<li><strong>${esc(c.capability)}:</strong> ${esc(c.tools.join(", "))} — compare actual features, plan limits and pricing.</li>`).join("")}</ul>` : `<p>No potential overlap identified from ${owned.length ? "the recognized ad claims and saved tool names" : "your inventory"}. This does not establish that the product is unique or necessary.</p>`}
+    <p class="muted">Recognized advertised capabilities: ${esc(assessed.join(", ") || "none in the current comparison catalog")}. This is a preliminary name-and-capability screening, not independent verification or a feature-by-feature audit.</p>`;
+}
+
 // Ad intake A1: manual evidence capture, intentionally separate from checkout verdict API.
 let adImageUrl = null;
 async function chooseAdFile(file) {
@@ -816,12 +845,13 @@ $("goAd").onclick = async () => {
   cancelRun();
   const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim();
   if (!adImageUrl && (!name || !claim)) {
-    $("result").innerHTML = '<div class="err">Upload an ad image or enter its advertiser and claims.</div>'; return;
+    $("result").innerHTML = '<div class="err">Upload an ad image or enter its advertiser and claims.</div>'; showAnswerPanel(); return;
   }
   if (adImageUrl) {
     const run = state.run;
     $("goAd").disabled = true;
     $("result").innerHTML = '<div class="empty"><strong>Reading the advertisement…</strong>Promotional claims are not verified facts.</div>';
+    showAnswerPanel();
     try {
       const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
       const data = await response.json();
@@ -837,17 +867,17 @@ $("goAd").onclick = async () => {
         $("result").innerHTML = `<h2>Ad review</h2><p>${esc(data.message || "No image extraction performed.")}</p>`;
         return;
       }
-      const x = data.extraction || {}, matches = owned.filter(t => t.toLowerCase() === (x.product || x.advertiser || "").toLowerCase());
+      const x = data.extraction || {};
       $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>
         <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
         <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)} <span class="muted">(Evidence: ${esc(c.evidence)})</span></li>`).join("") || "<li>No legible claims found</li>"}</ul>
         <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
         <h3>Still needs verification</h3><ul>${(x.missing_information || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>Pricing, renewal, cancellation, and feature evidence</li>"}</ul>
-        <p><strong>Owned tools:</strong> ${matches.length ? "Exact product-name match in your inventory" : "No exact product-name match; functional overlap not assessed"}</p>
+        ${adOwnedComparison(x, goal)}
         <p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
       showAnswerPanel();
     } catch (err) {
-      if (run === state.run) $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`;
+      if (run === state.run) { $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`; showAnswerPanel(); }
     } finally { if (run === state.run) $("goAd").disabled = false; }
     return;
   }
@@ -857,7 +887,7 @@ $("goAd").onclick = async () => {
     <p><strong>Advertiser:</strong> ${esc(name)}</p>
     <p><strong>Advertised claim (user-transcribed; unverified):</strong> ${esc(claim)}</p>
     ${goal ? `<p><strong>Your goal:</strong> ${esc(goal)}</p>` : ""}
-    <p><strong>Owned-tool check:</strong> ${duplicates.length ? "This product name already appears in your owned inventory." : "No exact name match in your owned inventory. Similar tools have not yet been checked."}</p>
+    ${adOwnedComparison({advertiser:name,product:name,claims:[{text:claim}]},goal)}
     <div class="how"><h3>Before proceeding</h3><ul>
       <li>Confirm pricing, trial renewal and cancellation terms on the official website.</li>
       <li>Verify the advertised features independently; this is a claim, not a tested capability.</li>
