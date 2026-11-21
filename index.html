@@ -351,7 +351,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-20.ad-intake-A3";
+const PAGE_VERSION = "2026-11-20.ad-intake-A4";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -826,7 +826,13 @@ $("goAd").onclick = async () => {
       const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
       const data = await response.json();
       if (run !== state.run) return;
-      if (!response.ok) throw new Error(data.error?.message || "Image extraction unavailable");
+      if (!response.ok) {
+        if (response.status === 401) {
+          const message = data.error?.code === "missing_service_token" ? "This preview requires its SERVICE_TOKEN. Expand Settings and enter the Preview access token." : "The access token was rejected. Confirm you used SERVICE_TOKEN for this Vercel Preview, not a Meta, Stripe or Supabase API key.";
+          throw new Error(message);
+        }
+        throw new Error(data.error?.message || "Image extraction unavailable");
+      }
       if (data.status !== "extracted") {
         $("result").innerHTML = `<h2>Ad review</h2><p>${esc(data.message || "No image extraction performed.")}</p>`;
         return;
