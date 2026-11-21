@@ -230,6 +230,14 @@ footer h2 { font-size: 15px; color: var(--ink); }
   .pipeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
   .pipeline li::before { left: -12px; top: 0; } }
 footer a { color: inherit; }
+/* Visible progress while a live ad is being analyzed. */
+.ad-thinking { display:flex; align-items:center; gap:12px; padding:12px 0; }
+.ad-dots { display:inline-flex; align-items:center; gap:5px; min-width:54px; }
+.ad-dots span { display:block; width:9px; height:9px; border-radius:50%; background:var(--primary); animation:ad-bounce 1s ease-in-out infinite; }
+.ad-dots span:nth-child(2) { animation-delay:.15s; }
+.ad-dots span:nth-child(3) { animation-delay:.3s; }
+@keyframes ad-bounce { 0%,65%,100% { transform:translateY(0); opacity:.45; } 30% { transform:translateY(-7px); opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .ad-dots span { animation:none; opacity:.8; } }
 </style>
 </head>
 <body>
@@ -787,10 +795,10 @@ function render(r, question, secs) {
 // Conservative, explainable capability comparison. A potential overlap is NOT a verified feature match.
 // Only consider tools explicitly saved in this browser; never imply a user owns a tool from the library.
 const AD_CAPABILITIES = [
-  {label:"website building", pattern:/\b(websites?|website builder|web pages?|landing pages?|site builder|build your website)\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
+  {label:"website building", pattern:/\b(build (?:your |a |my )?websites?|create (?:your |a |my )?websites?|website builder|build (?:web |landing )?pages?|site builder)\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
   {label:"digital product or course sales", pattern:/\b(courses?|digital products?|sell your products|online courses?)\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
   {label:"email marketing and audience growth", pattern:/\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
-  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book meetings)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
+  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book(?:s|ing)? (?:the |sales )?calls?|book(?:s|ing)? meetings|writes? (?:the |outreach )?emails?|finds? (?:the )?people who need)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
   {label:"creative content production", pattern:/\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
 ];
 function adOwnedComparison(x, goal) {
@@ -850,7 +858,7 @@ $("goAd").onclick = async () => {
   if (adImageUrl) {
     const run = state.run;
     $("goAd").disabled = true;
-    $("result").innerHTML = '<div class="empty"><strong>Reading the advertisement…</strong>Promotional claims are not verified facts.</div>';
+    $("result").innerHTML = '<div class="empty" role="status" aria-live="polite"><div class="ad-thinking"><span class="ad-dots" aria-hidden="true"><span></span><span></span><span></span></span><strong>Reading the advertisement…</strong></div><p>Checking the claims and your saved tools. Promotional claims are not verified facts.</p></div>';
     showAnswerPanel();
     try {
       const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
