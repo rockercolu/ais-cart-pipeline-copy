@@ -99,7 +99,13 @@ def handle(method, path, headers, body):
     if method != "POST":
         return _error(405, "method_not_allowed", f"Use POST {path}.")
     if not _authorized(headers):
-        return _error(401, "unauthorized", "Missing or wrong service token. Send it as \"Authorization: Bearer <token>\".")
+        supplied = bool((_header(headers, "Authorization") or "").strip() or
+                        (_header(headers, "X-Service-Token") or "").strip())
+        if supplied:
+            return _error(401, "invalid_service_token",
+                          "The access token was rejected. Check the SERVICE_TOKEN for this Preview environment; do not use a model, Stripe or Supabase key.")
+        return _error(401, "missing_service_token",
+                      "This preview requires an access token. Open Settings and enter its SERVICE_TOKEN before submitting.")
     if len(body) > MAX_BODY:
         return _error(413, "too_large", f"Request is {len(body)} bytes; the limit is {MAX_BODY}. Send a smaller or JPEG screenshot.")
     if _rate_limited(headers):
