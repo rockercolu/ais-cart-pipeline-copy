@@ -345,7 +345,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-20.ad-intake-A1";
+const PAGE_VERSION = "2026-11-20.ad-intake-A2";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -540,6 +540,7 @@ function setMode(mode) {
   cancelRun();
   state.pick += 1;
   state.mode = mode;
+  if (mode !== "ad") { adImageUrl = null; $("adPreview").hidden = true; $("adFile").value = ""; }
   $("modeShot").setAttribute("aria-selected", String(mode === "shot"));
   $("modeGoal").setAttribute("aria-selected", String(mode === "goal"));
   $("modeAd").setAttribute("aria-selected", String(mode === "ad"));
@@ -789,11 +790,38 @@ $("adFile").onchange = async e => {
   $("adPreview").src = data; $("adPreview").hidden = false;
   showEmpty();
 };
-$("goAd").onclick = () => {
+$("goAd").onclick = async () => {
   cancelRun();
   const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim();
-  if (!name || !claim) {
-    $("result").innerHTML = '<div class="err">Enter the advertiser and its advertised claim first.</div>'; return;
+  if (!adImageUrl && (!name || !claim)) {
+    $("result").innerHTML = '<div class="err">Upload an ad image or enter its advertiser and claims.</div>'; return;
+  }
+  if (adImageUrl) {
+    const run = state.run;
+    $("goAd").disabled = true;
+    $("result").innerHTML = '<div class="empty"><strong>Reading the advertisement…</strong>Promotional claims are not verified facts.</div>';
+    try {
+      const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
+      const data = await response.json();
+      if (run !== state.run) return;
+      if (!response.ok) throw new Error(data.error?.message || "Image extraction unavailable");
+      if (data.status !== "extracted") {
+        $("result").innerHTML = `<h2>Ad review</h2><p>${esc(data.message || "No image extraction performed.")}</p>`;
+        return;
+      }
+      const x = data.extraction || {}, matches = owned.filter(t => t.toLowerCase() === (x.product || x.advertiser || "").toLowerCase());
+      $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>
+        <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
+        <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)} <span class="muted">(Evidence: ${esc(c.evidence)})</span></li>`).join("") || "<li>No legible claims found</li>"}</ul>
+        <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
+        <h3>Still needs verification</h3><ul>${(x.missing_information || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>Pricing, renewal, cancellation, and feature evidence</li>"}</ul>
+        <p><strong>Owned tools:</strong> ${matches.length ? "Exact product-name match in your inventory" : "No exact product-name match; functional overlap not assessed"}</p>
+        <p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
+      showAnswerPanel();
+    } catch (err) {
+      if (run === state.run) $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`;
+    } finally { if (run === state.run) $("goAd").disabled = false; }
+    return;
   }
   const duplicates = owned.filter(x => x.toLowerCase() === name.toLowerCase());
   $("result").innerHTML = `<h2 id="right-title">Advertisement review — experimental</h2>
