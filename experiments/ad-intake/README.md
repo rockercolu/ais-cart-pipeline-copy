@@ -50,3 +50,32 @@ Do not commit users' raw social-media screenshots to a public repository without
 
 ## Review handoff
 Open a draft PR only after the first functional implementation and regression checks. Ask Amir and Sanvi to assess backend routing, image extraction, matcher compatibility, privacy, and deployment. Do not merge without review.
+
+## Live experiment log — 2026-11-21 (user-observed browser screenshots)
+Source: user-shared screenshots of the experimental Vercel preview. These are visual observations, not automated test results. Both test images were purpose-built simulated advertisements, not authentic Facebook advertisements.
+
+### A1 — Kajabi simulated advertisement
+- Browser drag/drop preview: screenshot selected and displayed.
+- Authenticated live vision response: yes, after an isolated preview-only SERVICE_TOKEN was configured.
+- Advertiser: Kajabi (correct).
+- Product: "courses and digital products" (category description, not a precise product name).
+- Visible claims: "Build and sell your knowledge"; "Create courses and digital products"; "Website and audience tools"; "30-day free trial advertised" (all present in fixture).
+- Advertised offer: 30-day free trial advertised (correct).
+- Still needs verification: "Renewal price: NOT SHOWN" (correct).
+- Verdict: RESEARCH — claims not verified (appropriate).
+- Gap: results do not prominently flag that the fixture says "SIMULATED TEST AD — NOT A REAL OFFER."
+
+### A2 — Explee AI simulated advertisement
+- Authenticated live vision response: yes.
+- Advertiser: Explee AI (correct).
+- Product: "Not legible" (needs review; brand is legible but product may not be separately named).
+- Visible claims: "Find prospects"; "Start conversations"; "AI-assisted prospect discovery"; "Automated outreach emails"; "$30 trial credits advertised" (all present in fixture).
+- Verdict: RESEARCH — claims not verified (appropriate).
+- The screenshot cuts off the lower output, so the advertised-offer section and ongoing-usage-cost warning were not independently inspected. Do not mark those as passed until the full result is captured.
+
+### Status and open tests
+- Two of two controlled fixtures produced visible analyses; not equivalent to two fully passing acceptance suites.
+- Authentication, image selection, basic extraction, evidence display and research-first framing have been observed.
+- Not yet validated: authentic Facebook ad, pricing/feature verification, inventory overlap beyond exact name, full Explee output, mobile widths, existing cart/goal regression suite, cost/latency, prompt injection, and checkout flow isolation.
+- Next: test one authentic user-supplied Facebook ad, record visible extracted claims and unknowns, then compare against human reading.
+- Security: experimental SERVICE_TOKEN is branch-specific; no secrets or screenshots containing secrets should be committed.
