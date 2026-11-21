@@ -79,3 +79,19 @@ Source: user-shared screenshots of the experimental Vercel preview. These are vi
 - Not yet validated: authentic Facebook ad, pricing/feature verification, inventory overlap beyond exact name, full Explee output, mobile widths, existing cart/goal regression suite, cost/latency, prompt injection, and checkout flow isolation.
 - Next: test one authentic user-supplied Facebook ad, record visible extracted claims and unknowns, then compare against human reading.
 - Security: experimental SERVICE_TOKEN is branch-specific; no secrets or screenshots containing secrets should be committed.
+
+## Paired authentic-ad experiment — A3/A4, 2026-11-21
+Evidence: user-provided screenshots of the same genuine Kajabi Facebook ad and two browser outputs, not an automated regression suite.
+
+- **A3 — Checkout mode (accidental routing):** The ad was uploaded through "I have a screenshot." The checkout-specific pipeline recognized Kajabi and the free 30-day trial, found no subtotal, tax, due-now amount or renewal price, and returned **WAIT**. It reported "No better option found" without a stated purchase goal. Muse Wonder re-read three flagged fields and changed none. Reported processing 32.286 s and estimated model cost $0.0440. This is an appropriately cautious checkout check but a mismatched analysis type for an ad.
+- **A4 — Ad mode (intended routing):** The same ad was uploaded through "I saw an ad." The ad pipeline returned **RESEARCH — claims not verified**, extracted Kajabi's advertised content, website, audience and product-sales claims and free 30-day trial, and flagged unknown post-trial pricing, trial conditions and subscription fees. It said **"No exact product-name match; functional overlap not assessed."**
+- **Unexpected discovery:** A user-selection mistake created a controlled comparison: identical image, different pipelines and different questions. It supports explicit screenshot-type routing, and suggests future automatic ad/checkout classification with user confirmation.
+- **Caveat:** The results do not independently verify Kajabi's promises or whether the user's existing tools replace Kajabi. A3's WAIT and A4's RESEARCH are not directly comparable purchase verdicts.
+- **UX observation:** Clicking a blue action button while scrolled down left the user staring at the lower form with no visible loading feedback on desktop.
+
+## Experimental follow-up — A5
+- Changed `showAnswerPanel()` to scroll to the answer area on **desktop and mobile**, not just small screens.
+- When clicking **Review this ad**, show the loading message and scroll to it immediately, before the model responds; scroll again after success or failure.
+- Added an explainable **potential capability overlap** screen against tools explicitly saved in the browser inventory. Ad claims trigger limited capability categories; matching saved names are displayed with a caution to verify actual functionality, plan limits and pricing.
+- No claim of automatic subscription detection, verified features, universal tool coverage or confirmed redundancy. No automatic purchase approval.
+- Still to test manually: Safari scroll position when the button is pressed, same-screen loading indicator, Kajabi with Squarespace explicitly saved, Kajabi with no saved tools, Explee with an outreach tool saved, mobile behavior, and unchanged checkout/goal workflows.
