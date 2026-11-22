@@ -222,6 +222,17 @@ def run_check(uid,body):
     client=client_from_env()
     if client is None:raise PilotError(503,'model_not_configured','Screenshot analysis is not configured yet.')
     fingerprint=hashlib.sha256(image+b'\x00'+question.encode()).hexdigest()
+    # A new request for an already-completed screenshot/question needs explicit consent.
+    # Replaying the SAME request ID remains idempotent and never consumes a second credit.
+    if not body.get('confirmRepeat'):
+        recent=sb('/rest/v1/pilot_usage?user_id=eq.'+uid+'&fingerprint=eq.'+fingerprint+'&status=eq.completed&select=id,created_at&order=created_at.desc&limit=1',privileged=True)
+        if recent and recent[0]['id']!=request_id:
+            from datetime import datetime,timezone,timedelta
+            try:
+                checked=datetime.fromisoformat(recent[0]['created_at'].replace('Z','+00:00'))
+                if datetime.now(timezone.utc)-checked<timedelta(hours=24):
+                    raise PilotError(409,'repeat_confirmation_required','This screenshot and question were checked in the last 24 hours. Run again and use another credit?')
+            except (ValueError,TypeError):pass
     reservation=rpc('pilot_reserve_check',{'p_user':uid,'p_request':request_id,'p_fingerprint':fingerprint})
     if reservation['status']=='completed' and reservation.get('result'):return reservation['result']
     if reservation['status']=='no_credits':raise PilotError(402,'no_credits','Add a sandbox check pack first.')
