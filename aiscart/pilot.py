@@ -146,6 +146,8 @@ def handle(method,action,headers,raw):
         user,token,new_cookie=identity(headers);uid=user['id']
         if new_cookie:response_headers['Set-Cookie']=new_cookie
         if action=='session':
+            # First authenticated session provisions a zero-credit account without manual SQL.
+            sb('/rest/v1/pilot_accounts?on_conflict=user_id','POST',{'user_id':uid},privileged=True,prefer='resolution=ignore-duplicates,return=minimal')
             rpc('pilot_reclaim_stale',{'p_user':uid})
             rows=sb('/rest/v1/pilot_accounts?user_id=eq.'+uid+'&select=credits',token=token)
             return response(200,{'user':{'id':uid,'email':user.get('email')},'credits':rows[0]['credits'] if rows else 0,'testOnly':True})
