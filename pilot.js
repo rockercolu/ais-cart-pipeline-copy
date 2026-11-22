@@ -23,6 +23,7 @@ async function refresh(){
   account=session;inventory=saved.tools;revision=saved.revision;$('tools').value=inventory.join('\n');history=recent.checks;renderHistory();}
  catch(error){if(run!==sessionRun)return;if(error.status!==401)message(error.message);account=null;}
  showAccount();
+ if(account)message('Account refreshed at '+new Date().toLocaleTimeString()+'. '+account.credits+' sandbox credits available.');
 }
 async function authenticate(action){
  const password=$('password').value;
@@ -40,7 +41,7 @@ $('checkout').onclick=async()=>{
  try{const data=await api('checkout','POST',{requestId:checkoutRequest});const target=new URL(data.url);if(target.protocol!=='https:'||target.hostname!=='checkout.stripe.com')throw new Error('Unexpected checkout address.');location.assign(target.href);}
  catch(error){message(error.message);showAccount();}
 };
-$('refresh').onclick=refresh;
+$('refresh').onclick=async()=>{const b=$('refresh');b.disabled=true;b.textContent='Refreshing…';try{await refresh();}finally{b.disabled=false;b.textContent='Refresh account';}};
 function render(result){
  const run=++renderRun;
  const v=result.verdict;
