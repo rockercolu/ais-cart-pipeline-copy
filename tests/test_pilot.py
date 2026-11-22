@@ -148,7 +148,7 @@ with patch.dict(os.environ,ENV,clear=True):
   check('Confirmed repeat uses one credit',status==200 and provider.balances[OWNER]==8)
   call('analyze','POST',body)
   check('Earlier request remains idempotent',provider.balances[OWNER]==8)
-  check('Same request id cannot refer to a different question',call('analyze','POST',{**body,'question':'Different question'})[0]==409 and provider.balances[OWNER]==9)
+  check('Same request id cannot refer to a different question',call('analyze','POST',{**body,'question':'Different question'})[0]==409 and provider.balances[OWNER]==8)
   check('Other account cannot read saved history',call('history',who='other')[2]['checks']==[])
   call('history','DELETE',{'id':rid},who='other');check('Other account cannot delete saved check',rid in provider.history)
   with patch('aiscart.analyze.analyze',side_effect=RuntimeError('fake provider failure')):
