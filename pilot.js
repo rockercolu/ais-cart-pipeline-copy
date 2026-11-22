@@ -97,7 +97,7 @@ $('checkForm').onsubmit=async event=>{
  $('analyze').disabled=true;$('screenshot').disabled=true;$('question').disabled=true;$('working').hidden=false;
  try{
   const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-  const result=await api('analyze','POST',{requestId,image,question:$('question').value});if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
+  let result;try{result=await api('analyze','POST',{requestId,image,question:$('question').value});}catch(error){if(error.status!==409||!error.message.includes('last 24 hours')||!confirm(error.message))throw error;result=await api('analyze','POST',{requestId,image,question:$('question').value,confirmRepeat:true});}if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
  }catch(error){message(error.message);await refresh();}
  finally{$('working').hidden=true;$('screenshot').disabled=false;$('question').disabled=false;$('analyze').disabled=!account||account.credits<1;}
 };
