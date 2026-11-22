@@ -541,7 +541,7 @@ $("go").onclick = async () => {
     if(paid && state.image.length>4100000)throw new Error('This pilot accepts screenshots under 3 MB.');
     if(paid && !paidCheckRequestId)paidCheckRequestId=crypto.randomUUID();
     const endpoint=paid?'/api/pilot?action=analyze':'/api/analyze';
-    const payload=paid?{requestId:paidCheckRequestId,image:state.image,question}:
+    let payload=paid?{requestId:paidCheckRequestId,image:state.image,question}:
       {image:state.image,question,review:$("review").value};
     const resp = await fetch(endpoint, {method: "POST", headers, signal: controller.signal,
       credentials:'same-origin',body:JSON.stringify(payload)});
