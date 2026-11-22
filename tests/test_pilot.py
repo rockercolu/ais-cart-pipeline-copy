@@ -61,7 +61,7 @@ class Providers:
      if q.get('user_id') and 'eq.'+record['user'] not in q['user_id']:continue
      if q.get('fingerprint') and 'eq.'+record['fingerprint'] not in q['fingerprint']:continue
      if q.get('status') and 'eq.'+record['status'] not in q['status']:continue
-     rows.append({'id':rid,'created_at':record.get('created_at','2026-11-22T12:00:00Z')})
+     rows.append({'id':rid,'created_at':record.get('created_at',__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat())})
     return rows[-1:]
    if path=='/rest/v1/pilot_orders':
     assert auth=='service-test';self.orders.setdefault(body['session_id'],dict(body));return [self.orders[body['session_id']]]
