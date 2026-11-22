@@ -543,9 +543,13 @@ $("go").onclick = async () => {
     const endpoint=paid?'/api/pilot?action=analyze':'/api/analyze';
     let payload=paid?{requestId:paidCheckRequestId,image:state.image,question}:
       {image:state.image,question,review:$("review").value};
-    const resp = await fetch(endpoint, {method: "POST", headers, signal: controller.signal,
+    let resp = await fetch(endpoint, {method: "POST", headers, signal: controller.signal,
       credentials:'same-origin',body:JSON.stringify(payload)});
-    const data = await resp.json();
+    let data = await resp.json();
+    if(paid && resp.status===409 && data.error?.code==='repeat_confirmation_required' && confirm(data.error.message)){
+      resp=await fetch(endpoint,{method:'POST',headers,signal:controller.signal,credentials:'same-origin',body:JSON.stringify({...payload,confirmRepeat:true})});
+      data=await resp.json();
+    }
     if (run !== state.run) return;                      // a newer screenshot or check replaced this one
     if (!resp.ok) throw data.error || {message: `The server answered with HTTP ${resp.status}.`};
     if(paid){resetPaidRequest();refreshPilotOverview().catch(()=>{});}
@@ -900,7 +904,7 @@ async function refreshPilotOverview(){
   const account=await pilotApi('session');
   pilotSignedIn=true;
   $('pilotAccountDetails').hidden=false;$('pilotGuest').hidden=true;
-  $('pilotAccountStatus').textContent='Sandbox account connected';
+  $('pilotAccountStatus').textContent='Sandbox account connected · Updated '+new Date().toLocaleTimeString();
   $('pilotCredits').textContent=account.credits;
   $('pilotEmail').textContent=account.user.email||'Signed in';
   const [inventory,history]=await Promise.all([pilotApi('inventory'),pilotApi('history')]);
