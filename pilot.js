@@ -5,7 +5,7 @@ let setup=null,account=null,revision=0,inventory=[],history=[];
 let pendingCheck=null,checkoutRequest=null,renderRun=0,sessionRun=0;
 async function api(action,method='GET',body){
  const response=await fetch('/api/pilot?action='+action,{method,headers:{'Content-Type':'application/json'},credentials:'same-origin',...(body?{body:JSON.stringify(body)}:{})});
- const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error?.message||'The request could not be completed.'),{status:response.status});return data;
+ const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error?.message||'The request could not be completed.'),{status:response.status,code:data.error?.code,details:data.error||{}});return data;
 }
 function message(text){$('message').textContent=text;$('message').hidden=false;}
 function offer(){const item=setup.offer;$('offerName').textContent=item.name;$('offerCredits').textContent=item.credits;$('offerAmount').textContent=new Intl.NumberFormat('en-US',{style:'currency',currency:item.currency}).format(item.amount/100);}
@@ -23,7 +23,7 @@ async function refresh(){
   account=session;inventory=saved.tools;revision=saved.revision;$('tools').value=inventory.join('\n');history=recent.checks;renderHistory();}
  catch(error){if(run!==sessionRun)return;if(error.status!==401)message(error.message);account=null;}
  showAccount();
- if(account)message('Account refreshed at '+new Date().toLocaleTimeString()+'. '+account.credits+' sandbox credits available.');
+ 
 }
 async function authenticate(action){
  const password=$('password').value;
@@ -41,7 +41,7 @@ $('checkout').onclick=async()=>{
  try{const data=await api('checkout','POST',{requestId:checkoutRequest});const target=new URL(data.url);if(target.protocol!=='https:'||target.hostname!=='checkout.stripe.com')throw new Error('Unexpected checkout address.');location.assign(target.href);}
  catch(error){message(error.message);showAccount();}
 };
-$('refresh').onclick=async()=>{const b=$('refresh');b.disabled=true;b.textContent='Refreshing…';try{await refresh();}finally{b.disabled=false;b.textContent='Refresh account';}};
+$('refresh').onclick=async()=>{const b=$('refresh');b.disabled=true;b.textContent='Refreshing…';try{await refresh();$('refreshStatus').textContent=account?'Updated '+new Date().toLocaleTimeString()+' · '+account.credits+' sandbox credits available.':'';}finally{b.disabled=false;b.textContent='Refresh account';}};
 function render(result){
  const run=++renderRun;
  const v=result.verdict;
@@ -98,7 +98,7 @@ $('checkForm').onsubmit=async event=>{
  $('analyze').disabled=true;$('screenshot').disabled=true;$('question').disabled=true;$('working').hidden=false;
  try{
   const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-  let result;try{result=await api('analyze','POST',{requestId,image,question:$('question').value});}catch(error){if(error.status!==409||!error.message.includes('last 24 hours')||!confirm(error.message))throw error;result=await api('analyze','POST',{requestId,image,question:$('question').value,confirmRepeat:true});}if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
+  let result;try{result=await api('analyze','POST',{requestId,image,question:$('question').value});}catch(error){if(error.status!==409||error.code!=='repeat_confirmation_required'||!confirm(error.message))throw error;result=await api('analyze','POST',{requestId,image,question:$('question').value,confirmRepeat:true});}if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
  }catch(error){message(error.message);await refresh();}
  finally{$('working').hidden=true;$('screenshot').disabled=false;$('question').disabled=false;$('analyze').disabled=!account||account.credits<1;}
 };
