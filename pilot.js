@@ -91,17 +91,30 @@ dropzone.addEventListener('drop',event=>{
  uploadChanged();
 });
 $('question').oninput=()=>{pendingCheck=null;};
-$('checkForm').onsubmit=async event=>{
- event.preventDefault();const file=$('screenshot').files[0];if(!file||!account)return;
+function showRepeatWarning(error){
+ const matching=history.filter(item=>item.question===$('question').value);
+ const previous=matching[0];
+ $('answer').innerHTML=`<div class="duplicate" role="status"><p><strong>You've checked this screenshot and question in the last 24 hours.</strong> No additional credit was used.</p><p>Would you like to review a saved check or spend one credit to check again?</p><div class="row">${previous?'<button class="secondary" id="openPrevious" type="button">Open recent saved result</button>':''}<button class="secondary" id="cancelRepeat" type="button">Keep my credits</button><button id="checkAgain" type="button">Check again (uses 1 credit)</button></div></div>`;
+ if(previous)$('openPrevious').onclick=()=>{render(previous.result);$('answer').scrollIntoView({block:'start'});};
+ $('cancelRepeat').onclick=()=>{$('answer').textContent='Repeat check cancelled. No additional credit was used.';pendingCheck=null;};
+ $('checkAgain').onclick=()=>submitCheck(true);
+}
+$('checkForm').onsubmit=event=>{event.preventDefault();submitCheck(false);};
+async function submitCheck(confirmRepeat){
+ const file=$('screenshot').files[0];if(!file||!account)return;
  if(file.size>3000000){message('Choose a screenshot under 3 MB for this pilot.');return;}
  pendingCheck=pendingCheck||crypto.randomUUID();const requestId=pendingCheck,sessionAtStart=sessionRun;
  $('analyze').disabled=true;$('screenshot').disabled=true;$('question').disabled=true;$('working').hidden=false;
  try{
   const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-  let result;try{result=await api('analyze','POST',{requestId,image,question:$('question').value});}catch(error){if(error.status!==409||error.code!=='repeat_confirmation_required'||!confirm(error.message))throw error;result=await api('analyze','POST',{requestId,image,question:$('question').value,confirmRepeat:true});}if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
- }catch(error){message(error.message);await refresh();}
- finally{$('working').hidden=true;$('screenshot').disabled=false;$('question').disabled=false;$('analyze').disabled=!account||account.credits<1;}
-};
+  const result=await api('analyze','POST',{requestId,image,question:$('question').value,...(confirmRepeat?{confirmRepeat:true}:{})});
+  if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
+ }catch(error){
+  if(error.status===409&&error.code==='repeat_confirmation_required'){
+   await refresh();if(sessionAtStart===sessionRun)showRepeatWarning(error);
+  }else{message(error.message);await refresh();}
+ }finally{$('working').hidden=true;$('screenshot').disabled=false;$('question').disabled=false;$('analyze').disabled=!account||account.credits<1;}
+}
 (async()=>{
  try{setup=await api('status');offer();$('email').disabled=$('password').disabled=$('login').disabled=$('signup').disabled=!setup.accountsConfigured;
   $('notice').textContent=setup.accountsConfigured?'Private pilot: sandbox payments only. Credits and saved checks are tied to your account.':'The first-user pilot is built for review. Account and payment services have not been connected, so sign-up, sign-in and checkout are unavailable here.';
