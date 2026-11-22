@@ -550,7 +550,8 @@ $("go").onclick = async () => {
     if (!resp.ok) throw data.error || {message: `The server answered with HTTP ${resp.status}.`};
     if(paid){resetPaidRequest();refreshPilotOverview().catch(()=>{});}
     state.result = data; state.checkedQuestion = question; state.checkedGoal = $("shopperGoal").value.trim(); state.checkedOwned = JSON.stringify(owned);
-    render(data, question, (Date.now() - t0) / 1000);
+    if(paid) renderPilotReceipt(data, question, (Date.now() - t0) / 1000);
+    else render(data, question, (Date.now() - t0) / 1000);
     loadRecommendation(data, run);
     showAnswerPanel();
   } catch (err) {
@@ -851,6 +852,33 @@ function render(r, question, secs) {
   };
 }
 
+
+// Pilot analysis has a smaller response schema than the original experimental pipeline.
+// Render its evidence honestly rather than assuming review/calls/versions are present.
+function renderPilotReceipt(r, question, secs) {
+  const v=r.verdict||{},facts=r.facts||{},decision=v.decision||'WAIT';
+  const checkList=Array.isArray(v.check_before_buying)?v.check_before_buying:[];
+  const evidence={facts,checks:r.checks||{},verdict_checks:r.verdict_checks||[]};
+  const due=facts.total_due_now?.value||'Not shown';
+  $('result').innerHTML=`
+    <h2 id="right-title">Answer</h2>
+    <div class="first">
+      <figure class="shot"><img src="${state.image}" alt="The checkout you submitted"><figcaption><strong>${esc(state.name)}</strong><span>Checked in ${secs.toFixed(1)} s · 1 sandbox credit</span></figcaption></figure>
+      <div class="glance">
+        <p class="line"><span class="stamp in ${esc(decision)}">${esc(LABEL[decision]||decision)}</span></p>
+        <h3>${esc(v.headline||'Purchase check complete')}</h3>
+        <dl>
+          <div><dt>Due today</dt><dd class="v">${esc(due)}</dd></div>
+          <div><dt>Another option</dt><dd class="opt" id="optRow"><span class="opt-sub">Looking…</span></dd></div>
+        </dl>
+      </div>
+    </div>
+    <div class="stale" id="stale" hidden>You changed the question. Press Check before I buy to update this answer.</div>
+    ${checkList.length?'<h3>Before you pay</h3><ul class="next">'+checkList.map(x=>'<li>'+esc(x)+'</li>').join('')+'</ul>':''}
+    <div class="stale" id="goalStale" hidden>Goal or tools changed. Press Check before I buy to update the other option.</div>
+    <details class="why-opt" id="whyOpt" hidden><summary>Why this option</summary><div id="whyBody"></div></details>
+    <details class="evidence"><summary>View evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(evidence,null,2))}</pre></details>`;
+}
 
 // Read-only account overview plus explicit inventory sync. Keep the paid pipeline unchanged.
 let pilotInventoryRevision=0;
