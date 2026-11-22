@@ -10,7 +10,7 @@ function element(id) {
   if (!elements.has(id)) elements.set(id, {
     value: '', innerHTML: '', textContent: '', hidden: false, disabled: false, dataset: {},
     classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {}, removeAttribute() {},
-    querySelectorAll() { return []; }, focus() {}, scrollIntoView() {},
+    querySelectorAll() { return []; }, focus() {}, scrollIntoView() {}, addEventListener() {}, closest() { return null; },
     insertAdjacentHTML(_pos, text) { this.innerHTML += text; },
   });
   return elements.get(id);
