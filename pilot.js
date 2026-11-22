@@ -57,7 +57,38 @@ function renderHistory(){
  document.querySelectorAll('[data-open]').forEach(button=>button.onclick=()=>{render(history[Number(button.dataset.open)].result);$('answer').scrollIntoView({block:'start'});});
  document.querySelectorAll('[data-delete]').forEach(button=>button.onclick=async()=>{if(!confirm('Delete this saved check? Credits are not changed.'))return;try{await api('history','DELETE',{id:history[Number(button.dataset.delete)].id});await refresh();}catch(error){message(error.message);}});
 }
-$('screenshot').onchange=()=>{pendingCheck=null;const file=$('screenshot').files[0];if(!file)return;const r=new FileReader();r.onload=()=>{$('preview').src=r.result;$('preview').hidden=false;};r.readAsDataURL(file);};
+const upload=$('screenshot'),dropzone=$('dropzone');
+function uploadChanged(){
+ pendingCheck=null;$('answer').textContent='';renderRun++;
+ const file=upload.files[0];
+ if(!file){$('preview').hidden=true;$('preview').removeAttribute('src');return;}
+ if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>3000000){
+  upload.value='';$('preview').hidden=true;$('preview').removeAttribute('src');
+  message('Choose a PNG, JPG, WebP or GIF screenshot under 3 MB.');return;
+ }
+ const reader=new FileReader();
+ reader.onload=()=>{if(upload.files[0]===file){$('preview').src=reader.result;$('preview').hidden=false;}};
+ reader.readAsDataURL(file);
+}
+upload.addEventListener('change',uploadChanged);
+['dragenter','dragover'].forEach(type=>dropzone.addEventListener(type,event=>{
+ event.preventDefault();if(upload.disabled)return;
+ if(event.dataTransfer)event.dataTransfer.dropEffect='copy';
+ dropzone.classList.add('dragover');
+}));
+['dragleave','drop'].forEach(type=>dropzone.addEventListener(type,event=>{
+ event.preventDefault();dropzone.classList.remove('dragover');
+}));
+dropzone.addEventListener('drop',event=>{
+ if(upload.disabled||!event.dataTransfer)return;
+ const file=[...event.dataTransfer.files].find(f=>f.type.startsWith('image/'));
+ if(!file){message('Drop an image screenshot, not another file type.');return;}
+ if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>3000000){
+  message('Choose a PNG, JPG, WebP or GIF screenshot under 3 MB.');return;
+ }
+ const transfer=new DataTransfer();transfer.items.add(file);upload.files=transfer.files;
+ uploadChanged();
+});
 $('question').oninput=()=>{pendingCheck=null;};
 $('checkForm').onsubmit=async event=>{
  event.preventDefault();const file=$('screenshot').files[0];if(!file||!account)return;

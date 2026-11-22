@@ -241,6 +241,20 @@ footer a { color: inherit; }
   </header>
   <p class="banner" id="mockBanner" role="note" hidden><strong>Sample mode.</strong> This demo answers the three sample checkouts with prepared results and doesn't call Meta's models. The live version, shown in our demo video, reads any screenshot.</p>
 
+  <section class="panel" aria-label="Pilot account" style="padding:18px;margin-bottom:16px">
+    <div class="panel-head"><h2 style="font-size:20px">Your private pilot account</h2><a href="/pilot.html">Manage account</a></div>
+    <p id="pilotAccountStatus" role="status">Checking sign-in…</p>
+    <div id="pilotAccountDetails" hidden>
+      <p><strong id="pilotCredits">0</strong> sandbox checks available · <span id="pilotEmail"></span></p>
+      <p class="muted">When signed in, screenshot checks here use one sandbox credit and save to account history. Goal and description comparisons remain free. The original receipt layout stays intact.</p>
+      <button type="button" class="ghost" id="pilotSyncTools">Save browser tools to account</button>
+      <button type="button" class="ghost" id="pilotLoadTools">Load account tools here</button>
+      <button type="button" class="ghost" id="pilotRefresh">Refresh account</button>
+      <p id="pilotSyncStatus" role="status"></p>
+      <details><summary>Saved pilot checks <span id="pilotHistoryCount"></span></summary><div id="pilotHistory"></div></details>
+    </div>
+    <p id="pilotGuest" hidden><a href="/pilot.html">Sign in</a> to see your balance and saved checks here.</p>
+  </section>
   <div class="grid">
     <section class="panel" aria-labelledby="left-title">
       <div class="panel-head">
@@ -340,7 +354,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-18.connected.5";
+const PAGE_VERSION = "2026-11-22.account-dashboard-preview.1";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -368,6 +382,7 @@ fetch("/api/health").then(r => r.json()).then(h => {
 }).catch(() => { $("mode").textContent = "Server unreachable"; });
 
 function cancelRun() {
+  // Reuse the request ID for retries of the same image/question; invalidate it only when input changes.
   state.run += 1;
   if (state.controller) state.controller.abort();
   state.controller = null;
@@ -492,6 +507,10 @@ function updateStaleNotes() {
 $("q").oninput = updateStaleNotes;
 $("shopperGoal").oninput = updateStaleNotes;
 
+$("q").addEventListener('input',resetPaidRequest);
+$("file").addEventListener('change',resetPaidRequest);
+document.querySelectorAll('[data-sample]').forEach(b=>b.addEventListener('click',resetPaidRequest));
+$("reset").addEventListener('click',resetPaidRequest);
 $("go").onclick = async () => {
   if (!state.image) return;
   cancelRun();
@@ -500,6 +519,7 @@ $("go").onclick = async () => {
   const token = $("token").value.trim();
   try { sessionStorage.setItem("aiscart-token", token); } catch (e) {}
   const question = $("q").value;
+  if(pilotSignedIn && Number($("pilotCredits").textContent)<1){$("result").textContent='No sandbox checks remain. Open your pilot account to add test credits.';return;}
   $("go").disabled = true;
   const t0 = Date.now();
   $("result").innerHTML = `<h2 id="right-title">Answer</h2>${forStrip("Checking now")}
@@ -515,11 +535,20 @@ $("go").onclick = async () => {
   try {
     const headers = {"Content-Type": "application/json"};
     if (token) headers.Authorization = `Bearer ${token}`;
-    const resp = await fetch("/api/analyze", {method: "POST", headers, signal: controller.signal,
-      body: JSON.stringify({image: state.image, question, review: $("review").value})});
+    // Signed-in pilot: same metered, idempotent endpoint as /pilot.html.
+    // Guest: retain the original experimental screenshot tester.
+    const paid=pilotSignedIn;
+    if(paid && state.image.length>4100000)throw new Error('This pilot accepts screenshots under 3 MB.');
+    if(paid && !paidCheckRequestId)paidCheckRequestId=crypto.randomUUID();
+    const endpoint=paid?'/api/pilot?action=analyze':'/api/analyze';
+    const payload=paid?{requestId:paidCheckRequestId,image:state.image,question}:
+      {image:state.image,question,review:$("review").value};
+    const resp = await fetch(endpoint, {method: "POST", headers, signal: controller.signal,
+      credentials:'same-origin',body:JSON.stringify(payload)});
     const data = await resp.json();
     if (run !== state.run) return;                      // a newer screenshot or check replaced this one
     if (!resp.ok) throw data.error || {message: `The server answered with HTTP ${resp.status}.`};
+    if(paid){resetPaidRequest();refreshPilotOverview().catch(()=>{});}
     state.result = data; state.checkedQuestion = question; state.checkedGoal = $("shopperGoal").value.trim(); state.checkedOwned = JSON.stringify(owned);
     render(data, question, (Date.now() - t0) / 1000);
     loadRecommendation(data, run);
@@ -821,6 +850,69 @@ function render(r, question, secs) {
     more.textContent = open ? "Show fewer" : `Show all ${checks.length}`;
   };
 }
+
+
+// Read-only account overview plus explicit inventory sync. Keep the paid pipeline unchanged.
+let pilotInventoryRevision=0;
+let pilotSignedIn=false;
+let paidCheckRequestId=null;
+function resetPaidRequest(){paidCheckRequestId=null;}
+
+async function pilotApi(action,method='GET',body){
+ const response=await fetch('/api/pilot?action='+encodeURIComponent(action),{
+  method,credentials:'same-origin',headers:{'Content-Type':'application/json'},
+  ...(body===undefined?{}:{body:JSON.stringify(body)})
+ });
+ const data=await response.json();
+ if(!response.ok)throw Object.assign(new Error(data.error?.message||'Account request failed'),{status:response.status});
+ return data;
+}
+async function refreshPilotOverview(){
+ try{
+  const account=await pilotApi('session');
+  pilotSignedIn=true;
+  $('pilotAccountDetails').hidden=false;$('pilotGuest').hidden=true;
+  $('pilotAccountStatus').textContent='Sandbox account connected';
+  $('pilotCredits').textContent=account.credits;
+  $('pilotEmail').textContent=account.user.email||'Signed in';
+  const [inventory,history]=await Promise.all([pilotApi('inventory'),pilotApi('history')]);
+  pilotInventoryRevision=inventory.revision;
+  const checks=history.checks||[];
+  $('pilotHistoryCount').textContent='('+checks.length+')';
+  $('pilotHistory').innerHTML=checks.map((item,i)=>{
+   const v=item.result?.verdict||{};
+   return '<article style="padding:12px 0;border-top:1px solid #d5dce5"><strong>'+
+    esc(LABEL[v.decision]||v.decision||'Checked')+'</strong> · '+esc(item.question)+
+    '<p class="muted">'+esc(new Date(item.created_at).toLocaleString())+'</p>'+
+    '<p>'+esc(v.headline||'')+'</p><details><summary>Evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+
+    esc(JSON.stringify({facts:item.result?.facts,checks:item.result?.checks,verdict_checks:item.result?.verdict_checks},null,2))+
+    '</pre></details></article>';
+  }).join('')||'<p>No saved checks yet.</p>';
+ }catch(error){
+  if(error.status===401){
+   pilotSignedIn=false;
+   $('pilotAccountDetails').hidden=true;$('pilotGuest').hidden=false;
+   $('pilotAccountStatus').textContent='Not signed in to the private pilot.';
+  }else $('pilotAccountStatus').textContent='Account unavailable: '+error.message;
+ }
+}
+$('pilotRefresh').onclick=refreshPilotOverview;
+$('pilotSyncTools').onclick=async()=>{
+ try{
+  const result=await pilotApi('inventory','PUT',{tools:owned,revision:pilotInventoryRevision});
+  pilotInventoryRevision=result.revision;
+  $('pilotSyncStatus').textContent='Saved '+result.tools.length+' tools to your account.';
+ }catch(error){$('pilotSyncStatus').textContent=error.message+' Refresh account before retrying.';}
+};
+$('pilotLoadTools').onclick=async()=>{
+ try{
+  const data=await pilotApi('inventory');
+  pilotInventoryRevision=data.revision;owned=data.tools||[];
+  saveOwned();renderOwned();updateStaleNotes();
+  $('pilotSyncStatus').textContent='Loaded '+owned.length+' saved tools into your recommendations.';
+ }catch(error){$('pilotSyncStatus').textContent=error.message;}
+};
+refreshPilotOverview();
 
 showEmpty();
 </script>
