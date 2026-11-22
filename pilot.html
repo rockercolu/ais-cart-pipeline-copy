@@ -24,7 +24,7 @@
 <p class="hint">Cancel Stripe Checkout before paying to leave without adding credits. The checkout return page never grants credits; only a verified payment event does.</p></section>
 </div>
 <section class="card workbench" id="workbench" hidden><p class="eyebrow">CHECK BEFORE YOU BUY</p><h2>Bring a real checkout</h2><p>Upload one screenshot. We’ll read what is visible, check the numbers, and keep unknown details unknown.</p>
-<form id="checkForm"><label>Screenshot<input id="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required></label><img id="preview" alt="Your selected checkout" hidden>
+<form id="checkForm"><label for="screenshot">Screenshot</label><div id="dropzone" class="dropzone" role="group" aria-label="Screenshot upload area"><p><strong>Drop your checkout screenshot here</strong> or choose a file below.</p><input id="screenshot" type="file" accept="image/png,image/jpeg,image/webp,image/gif" required aria-describedby="uploadHelp"><p id="uploadHelp" class="hint">PNG, JPG, WebP or GIF · Maximum 3 MB</p></div><img id="preview" alt="Your selected checkout" hidden>
 <label>Your question<textarea id="question" maxlength="500" required>Should I complete this purchase?</textarea></label><button id="analyze" type="submit">Check and save to my history</button></form>
 <p id="working" role="status" hidden>Reading the screenshot and checking its terms…</p><div id="answer" aria-live="polite"></div>
 </section>
