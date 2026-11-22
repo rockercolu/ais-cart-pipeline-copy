@@ -227,7 +227,9 @@ def run_check(uid,body):
     # A new request for an already-completed screenshot/question needs explicit consent.
     # Replaying the SAME request ID remains idempotent and never consumes a second credit.
     if not body.get('confirmRepeat'):
-        recent=sb('/rest/v1/pilot_usage?user_id=eq.'+uid+'&fingerprint=eq.'+fingerprint+'&status=eq.completed&select=id,created_at&order=created_at.desc&limit=1',privileged=True)
+        # Do not block an idempotent retry even if another matching check was completed later.
+        same_request=sb('/rest/v1/pilot_usage?id=eq.'+request_id+'&user_id=eq.'+uid+'&select=id&limit=1',privileged=True)
+        recent=[] if same_request else sb('/rest/v1/pilot_usage?user_id=eq.'+uid+'&fingerprint=eq.'+fingerprint+'&status=eq.completed&select=id,created_at&order=created_at.desc&limit=1',privileged=True)
         if recent and recent[0]['id']!=request_id:
             from datetime import datetime,timezone,timedelta
             try:
