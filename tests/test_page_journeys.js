@@ -9,7 +9,7 @@ const elements = new Map();
 function element(id) {
   if (!elements.has(id)) elements.set(id, {
     value: '', innerHTML: '', textContent: '', hidden: false, disabled: false, dataset: {},
-    classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {}, removeAttribute() {},
+    classList: {add() {}, remove() {}, toggle() {}}, setAttribute() {}, removeAttribute() {}, addEventListener() {},
     querySelectorAll() { return []; }, focus() {}, scrollIntoView() {},
     insertAdjacentHTML(_pos, text) { this.innerHTML += text; },
   });
