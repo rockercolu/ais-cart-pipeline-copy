@@ -53,9 +53,22 @@ class Providers:
     if name=='pilot_complete_check':
      row=self.usage[rid];assert row['user']==u and row['status']=='reserved';row['status']='completed'
      self.history[rid]={'id':rid,'user_id':u,'question':body['p_question'],'result':body['p_result'],'created_at':'2026-11-19T00:00:00Z'};return None
+   if path=='/rest/v1/pilot_usage':
+    assert auth=='service-test'
+    rows=[]
+    for rid,record in self.usage.items():
+     if q.get('id') and 'eq.'+rid not in q['id']:continue
+     if q.get('user_id') and 'eq.'+record['user'] not in q['user_id']:continue
+     if q.get('fingerprint') and 'eq.'+record['fingerprint'] not in q['fingerprint']:continue
+     if q.get('status') and 'eq.'+record['status'] not in q['status']:continue
+     rows.append({'id':rid,'created_at':record.get('created_at','2026-11-22T12:00:00Z')})
+    return rows[-1:]
    if path=='/rest/v1/pilot_orders':
     assert auth=='service-test';self.orders.setdefault(body['session_id'],dict(body));return [self.orders[body['session_id']]]
-   if path=='/rest/v1/pilot_accounts':return [{'credits':self.balances.get(uid,0)}]
+   if path=='/rest/v1/pilot_accounts':
+    if method=='POST':
+     assert auth=='service-test';self.balances.setdefault(body['user_id'],0);return []
+    return [{'credits':self.balances.get(uid,0)}]
    if path=='/rest/v1/pilot_inventory':return [self.inventory[uid]] if uid in self.inventory else []
    if path=='/rest/v1/pilot_checks':
     rows=[v for v in self.history.values() if v['user_id']==uid and (not q.get('id') or 'eq.'+v['id'] in q['id'])]
@@ -128,12 +141,19 @@ with patch.dict(os.environ,ENV,clear=True):
   status,_,data=call('analyze','POST',body)
   check('Full check saves result and spends one credit',status==200 and data['verdict']['decision']=='BUY' and provider.balances[OWNER]==9 and rid in provider.history)
   call('analyze','POST',body);check('Retry returns same result without spending twice',provider.balances[OWNER]==9)
+  second={**body,'requestId':str(uuid.uuid4())}
+  status,_,warning=call('analyze','POST',second)
+  check('Repeated check needs confirmation',status==409 and warning['error']['code']=='repeat_confirmation_required' and provider.balances[OWNER]==9)
+  status,_,again=call('analyze','POST',{**second,'confirmRepeat':True})
+  check('Confirmed repeat uses one credit',status==200 and provider.balances[OWNER]==8)
+  call('analyze','POST',body)
+  check('Earlier request remains idempotent',provider.balances[OWNER]==8)
   check('Same request id cannot refer to a different question',call('analyze','POST',{**body,'question':'Different question'})[0]==409 and provider.balances[OWNER]==9)
   check('Other account cannot read saved history',call('history',who='other')[2]['checks']==[])
   call('history','DELETE',{'id':rid},who='other');check('Other account cannot delete saved check',rid in provider.history)
   with patch('aiscart.analyze.analyze',side_effect=RuntimeError('fake provider failure')):
-   check('Failed analysis releases credit',call('analyze','POST',{**body,'requestId':str(uuid.uuid4())})[0]==503 and provider.balances[OWNER]==9)
-  call('history','DELETE',{'id':rid});check('Owner can delete own saved check',rid not in provider.history and provider.balances[OWNER]==9)
+   check('Failed analysis releases credit',call('analyze','POST',{**body,'requestId':str(uuid.uuid4()),'question':'Another question'})[0]==503 and provider.balances[OWNER]==8)
+  call('history','DELETE',{'id':rid});check('Owner can delete own saved check',rid not in provider.history and provider.balances[OWNER]==8)
   status,headers,_=call('logout','POST',{});check('Logout clears session cookie',status==200 and 'Max-Age=0' in headers['Set-Cookie'])
   status,headers,_=call('session',extra={'Cookie':cookie('expired-token')});check('Expired session refreshes server-side',status==200 and 'Set-Cookie' in headers)
 with patch.dict(os.environ,{},clear=True):
