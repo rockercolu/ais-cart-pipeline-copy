@@ -3,7 +3,7 @@
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
-const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-8222-222222222222';
+const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-8222-222222222222', NEWUSER='88888888-8888-4888-8888-888888888888';
 (async()=>{
  const db=new PGlite();let passed=0;
  const ok=(name,value)=>{assert.ok(value,name);passed++;console.log('PASS',name);};
@@ -13,7 +13,9 @@ const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-82
  create schema auth; create table auth.users(id uuid primary key);
  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
  grant usage on schema public,auth to anon,authenticated,service_role; grant execute on function auth.uid() to authenticated;
- insert into auth.users values('${OWNER}'),('${OTHER}');`);
+ -- Supabase's default: new public tables are granted to these roles; the migration then revokes what clients must not have.
+ alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
+ insert into auth.users values('${OWNER}'),('${OTHER}'),('${NEWUSER}');`);
  await db.exec(fs.readFileSync('migrations/001_first_user_pilot.sql','utf8'));
  ok('Migration executes in Postgres',true);
  await q('insert into pilot_accounts(user_id) values($1),($2)',[OWNER,OTHER]);
@@ -49,6 +51,19 @@ const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-82
  await q('select pilot_set_inventory($1,$2,0)',[OWNER,JSON.stringify(['Canva','ElevenLabs'])]);
  await assert.rejects(()=>q('select pilot_set_inventory($1,$2,0)',[OWNER,JSON.stringify(['Lost update'])]));
  ok('Inventory revision prevents lost updates',(await row('select tools from pilot_inventory where user_id=$1',[OWNER])).tools.length===2);
+ await db.exec('set role service_role;');
+ await q('insert into pilot_accounts(user_id) values($1) on conflict(user_id) do nothing',[NEWUSER]);
+ ok('The server can create a missing account row, starting at zero',(await row('select credits from pilot_accounts where user_id=$1',[NEWUSER])).credits===0);
+ await q('insert into pilot_accounts(user_id) values($1) on conflict(user_id) do nothing',[OWNER]);
+ ok('Creating an existing account row changes nothing',(await row('select credits from pilot_accounts where user_id=$1',[OWNER])).credits===9);
+ const earlier=await q("select id,created_at from pilot_usage where user_id=$1 and fingerprint=$2 and status='completed' and id<>$3 and created_at>=now()-interval '24 hours' order by created_at desc limit 1",[OWNER,fp,'99999999-9999-4999-8999-999999999999']);
+ ok('The server can find an earlier completed check of the same screenshot and question',earlier.rows.length===1&&earlier.rows[0].id===id);
+ await db.exec('reset role;');
+ await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${NEWUSER}',false);`);
+ await assert.rejects(()=>q('insert into pilot_accounts(user_id) values($1)',[OTHER]));
+ await assert.rejects(()=>q('select * from pilot_usage'));
+ ok('Signed-in clients cannot create account rows or read usage',true);
+ await db.exec('reset role;');
  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${OTHER}',false);`);
  ok('RLS hides another account history',(await q('select * from pilot_checks')).rows.length===0);
  ok('RLS hides another inventory',(await q('select * from pilot_inventory')).rows.length===0);

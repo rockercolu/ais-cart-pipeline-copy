@@ -7,3 +7,4 @@
 .dropzone:focus-within{outline:3px solid #83aff5;outline-offset:2px}
 .dropzone input[type=file]{background:white}
 .dropzone .hint{margin-bottom:0}
+.duplicate{background:#fbeedb;border:1px solid #ead3ac;border-radius:10px;padding:16px}.duplicate button{margin:8px 8px 0 0}#refreshStatus{margin:4px 0 0}

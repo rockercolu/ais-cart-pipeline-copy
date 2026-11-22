@@ -14,7 +14,7 @@ ENV={'SUPABASE_URL':'https://supabase.example.test','SUPABASE_ANON_KEY':'anon-te
      'STRIPE_SECRET_KEY':'sk_test_fixture','STRIPE_WEBHOOK_SECRET':'whsec_fixture','MOCK':'1'}
 class Providers:
  def __init__(self):
-  self.calls=[];self.users={OWNER:'owner@example.test',OTHER:'other@example.test'};self.balances={};self.inventory={};self.history={};self.orders={};self.usage={};self.sessions={};self.keys={}
+  self.calls=[];self.users={OWNER:'owner@example.test',OTHER:'other@example.test'};self.balances={};self.inventory={};self.history={};self.orders={};self.usage={};self.sessions={};self.keys={};self.accounts=set()
  def __call__(self,method,url,headers,body=None,form=False):
   self.calls.append((method,url,body));path=urlparse(url).path;q=parse_qs(urlparse(url).query)
   if url.startswith(ENV['SUPABASE_URL']):
@@ -45,7 +45,7 @@ class Providers:
       if old['user']!=u or old['fingerprint']!=body['p_fingerprint']:raise pilot.PilotError(409,'conflict','Payload changed')
       return {'status':old['status'],'result':self.history.get(rid,{}).get('result')}
      if self.balances.get(u,0)<1:return {'status':'no_credits'}
-     self.balances[u]-=1;self.usage[rid]={'user':u,'status':'reserved','fingerprint':body['p_fingerprint']};return {'status':'reserved_new'}
+     self.balances[u]-=1;self.usage[rid]={'user':u,'status':'reserved','fingerprint':body['p_fingerprint'],'created_at':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())};return {'status':'reserved_new'}
     if name=='pilot_release_check':
      row=self.usage[rid]
      if row['status']=='reserved':row['status']='released';self.balances[u]+=1
@@ -55,7 +55,17 @@ class Providers:
      self.history[rid]={'id':rid,'user_id':u,'question':body['p_question'],'result':body['p_result'],'created_at':'2026-11-19T00:00:00Z'};return None
    if path=='/rest/v1/pilot_orders':
     assert auth=='service-test';self.orders.setdefault(body['session_id'],dict(body));return [self.orders[body['session_id']]]
-   if path=='/rest/v1/pilot_accounts':return [{'credits':self.balances.get(uid,0)}]
+   if path=='/rest/v1/pilot_accounts':
+    if method=='POST':
+     assert auth=='service-test' and q.get('on_conflict')==['user_id'] and 'resolution=ignore-duplicates' in headers.get('Prefer','')
+     self.accounts.add(body['user_id']);return None
+    return [{'credits':self.balances.get(uid,0)}] if uid in self.accounts or uid in self.balances else []
+   if path=='/rest/v1/pilot_usage':
+    assert auth=='service-test','Usage is only readable with the service credential'
+    one=lambda k:q[k][0].split('.',1)[1]
+    rows=[{'id':k,'created_at':v['created_at']} for k,v in self.usage.items() if v['user']==one('user_id') and v['fingerprint']==one('fingerprint')
+          and v['status']==one('status') and k!=one('id') and v['created_at']>=one('created_at')]
+    return sorted(rows,key=lambda r:r['created_at'],reverse=True)[:1]
    if path=='/rest/v1/pilot_inventory':return [self.inventory[uid]] if uid in self.inventory else []
    if path=='/rest/v1/pilot_checks':
     rows=[v for v in self.history.values() if v['user_id']==uid and (not q.get('id') or 'eq.'+v['id'] in q['id'])]
@@ -103,7 +113,10 @@ with patch.dict(os.environ,ENV,clear=True):
   check('Uninvited signup rejected',call('signup','POST',{'email':'uninvited@example.test','password':'long-test-password'},who=False)[0]==403)
   status,headers,data=call('signup','POST',{'email':'owner@example.test','password':'long-test-password'},who=False)
   check('Signup returns HttpOnly Secure cookie and no token JSON',status==200 and 'HttpOnly' in headers['Set-Cookie'] and 'Secure' in headers['Set-Cookie'] and 'token-owner' not in json.dumps(data))
+  check('Account row does not exist before the first session',OWNER not in provider.accounts)
   check('Starting balance is zero',call('session')[2]['credits']==0)
+  check('First session creates the account row automatically, with the service credential',OWNER in provider.accounts)
+  call('session');check('Later sessions leave the existing account row alone',provider.accounts=={OWNER} and call('session')[2]['credits']==0)
   check('No credits blocks model request',call('analyze','POST',{'requestId':str(uuid.uuid4()),'image':'iVBORw==','question':'Should I buy?'})[0]==402)
   check('Save inventory uses authenticated identity',call('inventory','PUT',{'tools':['Canva','ElevenLabs'],'revision':0,'userId':OTHER})[2]['tools']==['Canva','ElevenLabs'] and OWNER in provider.inventory and OTHER not in provider.inventory)
   check('Stale inventory update conflicts',call('inventory','PUT',{'tools':['Wrong'],'revision':0})[0]==409)
@@ -131,9 +144,18 @@ with patch.dict(os.environ,ENV,clear=True):
   check('Same request id cannot refer to a different question',call('analyze','POST',{**body,'question':'Different question'})[0]==409 and provider.balances[OWNER]==9)
   check('Other account cannot read saved history',call('history',who='other')[2]['checks']==[])
   call('history','DELETE',{'id':rid},who='other');check('Other account cannot delete saved check',rid in provider.history)
+  again=str(uuid.uuid4());status,_,data=call('analyze','POST',{**body,'requestId':again})
+  check('Same screenshot and question again asks first, spends nothing and points to the saved check',
+        status==409 and data['error']['code']=='duplicate_check' and data['error']['previousId']==rid and data['error']['checkedAt'] and provider.balances[OWNER]==9 and again not in provider.usage)
+  status,_,data=call('analyze','POST',{**body,'requestId':again,'confirmDuplicate':True})
+  check('Confirming the duplicate runs it and spends one credit',status==200 and provider.balances[OWNER]==8 and again in provider.history)
+  status,_,data=call('analyze','POST',{**body,'requestId':str(uuid.uuid4()),'question':'Is the renewal price shown?'})
+  check('The same screenshot with a different question is not a duplicate',status==200 and provider.balances[OWNER]==7)
+  call('analyze','POST',body);check('Retrying the original request still returns its saved result for free',provider.balances[OWNER]==7)
+  check('Duplicate errors still hide provider details',data and 'service-test' not in json.dumps(call('analyze','POST',{**body,'requestId':str(uuid.uuid4())})[2]))
   with patch('aiscart.analyze.analyze',side_effect=RuntimeError('fake provider failure')):
-   check('Failed analysis releases credit',call('analyze','POST',{**body,'requestId':str(uuid.uuid4())})[0]==503 and provider.balances[OWNER]==9)
-  call('history','DELETE',{'id':rid});check('Owner can delete own saved check',rid not in provider.history and provider.balances[OWNER]==9)
+   check('Failed analysis releases credit',call('analyze','POST',{**body,'requestId':str(uuid.uuid4()),'confirmDuplicate':True})[0]==503 and provider.balances[OWNER]==7)
+  call('history','DELETE',{'id':rid});check('Owner can delete own saved check',rid not in provider.history and provider.balances[OWNER]==7)
   status,headers,_=call('logout','POST',{});check('Logout clears session cookie',status==200 and 'Max-Age=0' in headers['Set-Cookie'])
   status,headers,_=call('session',extra={'Cookie':cookie('expired-token')});check('Expired session refreshes server-side',status==200 and 'Set-Cookie' in headers)
 with patch.dict(os.environ,{},clear=True):

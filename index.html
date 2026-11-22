@@ -541,12 +541,13 @@ $("go").onclick = async () => {
     if(paid && state.image.length>4100000)throw new Error('This pilot accepts screenshots under 3 MB.');
     if(paid && !paidCheckRequestId)paidCheckRequestId=crypto.randomUUID();
     const endpoint=paid?'/api/pilot?action=analyze':'/api/analyze';
-    const payload=paid?{requestId:paidCheckRequestId,image:state.image,question}:
+    const payload=paid?{requestId:paidCheckRequestId,image:state.image,question,...(confirmPaidDuplicate?{confirmDuplicate:true}:{})}:
       {image:state.image,question,review:$("review").value};
     const resp = await fetch(endpoint, {method: "POST", headers, signal: controller.signal,
       credentials:'same-origin',body:JSON.stringify(payload)});
     const data = await resp.json();
     if (run !== state.run) return;                      // a newer screenshot or check replaced this one
+    confirmPaidDuplicate=false;
     if (!resp.ok) throw data.error || {message: `The server answered with HTTP ${resp.status}.`};
     if(paid){resetPaidRequest();refreshPilotOverview().catch(()=>{});}
     state.result = data; state.checkedQuestion = question; state.checkedGoal = $("shopperGoal").value.trim(); state.checkedOwned = JSON.stringify(owned);
@@ -556,6 +557,7 @@ $("go").onclick = async () => {
     showAnswerPanel();
   } catch (err) {
     if (run !== state.run || err.name === "AbortError") return;
+    if (err.code === "duplicate_check") { showPaidDuplicate(err); return; }
     const msg = err.code === "unauthorized" || err.message?.includes("token")
       ? "This server needs an access token. Add it under Settings and check again." : (err.message || String(err));
     $("result").innerHTML = `<h2 id="right-title">Answer</h2>${forStrip("Not checked")}
@@ -883,8 +885,18 @@ function renderPilotReceipt(r, question, secs) {
 // Read-only account overview plus explicit inventory sync. Keep the paid pipeline unchanged.
 let pilotInventoryRevision=0;
 let pilotSignedIn=false;
-let paidCheckRequestId=null;
-function resetPaidRequest(){paidCheckRequestId=null;}
+let paidCheckRequestId=null,confirmPaidDuplicate=false;
+function resetPaidRequest(){paidCheckRequestId=null;confirmPaidDuplicate=false;}
+// The server found the same screenshot and question checked recently: nothing was charged, so ask first.
+function showPaidDuplicate(err){
+ const when=err.checkedAt?new Date(err.checkedAt).toLocaleString():'recently';
+ $("result").innerHTML=`<h2 id="right-title">Answer</h2>${forStrip("Not checked")}
+  <div class="working" role="status"><p><strong>You already checked this screenshot</strong> with the same question (${esc(when)}). No credit was used.</p>
+  <p><button type="button" class="ghost" id="paidOpenSaved">Show saved checks</button> <button type="button" id="paidCheckAgain">Check again (uses 1 credit)</button></p></div>`;
+ $("paidOpenSaved").onclick=()=>{const box=$("pilotHistory").closest("details");if(box){box.open=true;box.scrollIntoView({block:"start"});}};
+ $("paidCheckAgain").onclick=()=>{confirmPaidDuplicate=true;$("go").onclick();};
+ showAnswerPanel();
+}
 
 async function pilotApi(action,method='GET',body){
  const response=await fetch('/api/pilot?action='+encodeURIComponent(action),{
@@ -924,7 +936,11 @@ async function refreshPilotOverview(){
   }else $('pilotAccountStatus').textContent='Account unavailable: '+error.message;
  }
 }
-$('pilotRefresh').onclick=refreshPilotOverview;
+$('pilotRefresh').onclick=async()=>{
+ const button=$('pilotRefresh');button.disabled=true;button.textContent='Refreshing…';
+ try{await refreshPilotOverview();}finally{button.disabled=false;button.textContent='Refresh account';}
+ $('pilotSyncStatus').textContent=pilotSignedIn?`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${$('pilotCredits').textContent} credits`:'';
+};
 $('pilotSyncTools').onclick=async()=>{
  try{
   const result=await pilotApi('inventory','PUT',{tools:owned,revision:pilotInventoryRevision});

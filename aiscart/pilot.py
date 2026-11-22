@@ -11,15 +11,17 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+from datetime import datetime, timedelta, timezone
 from http.cookies import SimpleCookie
 
 COOKIE = 'aiscart_pilot'
+DUPLICATE_WINDOW_HOURS = 24
 OFFER = {'id':'pilot_checks','name':"AI’sCart pilot — 10 screenshot checks",'amount':500,'currency':'usd','credits':10,
          'billing':'one_time','renewal':'None','expiry':'No expiry in this pilot','testOnly':True,
          'pricingNote':'Sample sandbox price, not an approved public offer.'}
 
 class PilotError(Exception):
-    def __init__(self,status,code,message): self.status,self.code,self.message=status,code,message
+    def __init__(self,status,code,message,extra=None): self.status,self.code,self.message,self.extra=status,code,message,extra or {}
 
 
 def config():
@@ -146,6 +148,9 @@ def handle(method,action,headers,raw):
         user,token,new_cookie=identity(headers);uid=user['id']
         if new_cookie:response_headers['Set-Cookie']=new_cookie
         if action=='session':
+            # Create the account row on first sign-in; existing rows are left untouched.
+            sb('/rest/v1/pilot_accounts?on_conflict=user_id','POST',{'user_id':uid},privileged=True,
+               prefer='resolution=ignore-duplicates,return=minimal')
             rpc('pilot_reclaim_stale',{'p_user':uid})
             rows=sb('/rest/v1/pilot_accounts?user_id=eq.'+uid+'&select=credits',token=token)
             return response(200,{'user':{'id':uid,'email':user.get('email')},'credits':rows[0]['credits'] if rows else 0,'testOnly':True})
@@ -165,7 +170,7 @@ def handle(method,action,headers,raw):
             return response(200,{'checks':sb('/rest/v1/pilot_checks?user_id=eq.'+uid+'&select=id,question,result,created_at&order=created_at.desc&limit=30',token=token)})
         if action=='checkout':return response(200,checkout(uid,valid_id(body.get('requestId'))))
         if action=='analyze':return response(200,run_check(uid,body))
-    except PilotError as e:return response(e.status,{'error':{'code':e.code,'message':e.message}})
+    except PilotError as e:return response(e.status,{'error':{**e.extra,'code':e.code,'message':e.message}})
     except Exception:
         # Unexpected provider failures must fail closed without leaking provider credentials.
         return response(503,{'error':{'code':'pilot_unavailable','message':'The pilot could not complete this request. No payment success is implied; check your account before retrying.'}})
@@ -222,6 +227,15 @@ def run_check(uid,body):
     client=client_from_env()
     if client is None:raise PilotError(503,'model_not_configured','Screenshot analysis is not configured yet.')
     fingerprint=hashlib.sha256(image+b'\x00'+question.encode()).hexdigest()
+    if body.get('confirmDuplicate') is not True:
+        # Same screenshot and question, completed recently under another request: ask before charging again.
+        # A retry of the same request id is not a duplicate; it returns its saved result below.
+        since=(datetime.now(timezone.utc)-timedelta(hours=DUPLICATE_WINDOW_HOURS)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        earlier=sb('/rest/v1/pilot_usage?user_id=eq.'+uid+'&fingerprint=eq.'+fingerprint+'&status=eq.completed&id=neq.'+request_id
+                   +'&created_at=gte.'+since+'&select=id,created_at&order=created_at.desc&limit=1',privileged=True) or []
+        if earlier:
+            raise PilotError(409,'duplicate_check','You already checked this screenshot with the same question. Open the saved result, or check it again for another credit.',
+                             {'previousId':earlier[0]['id'],'checkedAt':earlier[0]['created_at']})
     reservation=rpc('pilot_reserve_check',{'p_user':uid,'p_request':request_id,'p_fingerprint':fingerprint})
     if reservation['status']=='completed' and reservation.get('result'):return reservation['result']
     if reservation['status']=='no_credits':raise PilotError(402,'no_credits','Add a sandbox check pack first.')

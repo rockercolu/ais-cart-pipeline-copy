@@ -5,7 +5,7 @@ let setup=null,account=null,revision=0,inventory=[],history=[];
 let pendingCheck=null,checkoutRequest=null,renderRun=0,sessionRun=0;
 async function api(action,method='GET',body){
  const response=await fetch('/api/pilot?action='+action,{method,headers:{'Content-Type':'application/json'},credentials:'same-origin',...(body?{body:JSON.stringify(body)}:{})});
- const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error?.message||'The request could not be completed.'),{status:response.status});return data;
+ const data=await response.json();if(!response.ok)throw Object.assign(new Error(data.error?.message||'The request could not be completed.'),{status:response.status,code:data.error?.code,details:data.error||{}});return data;
 }
 function message(text){$('message').textContent=text;$('message').hidden=false;}
 function offer(){const item=setup.offer;$('offerName').textContent=item.name;$('offerCredits').textContent=item.credits;$('offerAmount').textContent=new Intl.NumberFormat('en-US',{style:'currency',currency:item.currency}).format(item.amount/100);}
@@ -40,7 +40,11 @@ $('checkout').onclick=async()=>{
  try{const data=await api('checkout','POST',{requestId:checkoutRequest});const target=new URL(data.url);if(target.protocol!=='https:'||target.hostname!=='checkout.stripe.com')throw new Error('Unexpected checkout address.');location.assign(target.href);}
  catch(error){message(error.message);showAccount();}
 };
-$('refresh').onclick=refresh;
+$('refresh').onclick=async()=>{
+ const button=$('refresh');button.disabled=true;button.textContent='Refreshing…';
+ try{await refresh();}finally{button.disabled=false;button.textContent='Refresh account';}
+ $('refreshStatus').textContent=account?`Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})} · ${account.credits} credit${account.credits===1?'':'s'}`:'';
+};
 function render(result){
  const run=++renderRun;
  const v=result.verdict;
@@ -90,17 +94,29 @@ dropzone.addEventListener('drop',event=>{
  uploadChanged();
 });
 $('question').oninput=()=>{pendingCheck=null;};
-$('checkForm').onsubmit=async event=>{
- event.preventDefault();const file=$('screenshot').files[0];if(!file||!account)return;
+function showDuplicate(details){
+ const index=history.findIndex(item=>item.id===details.previousId);
+ const when=details.checkedAt?new Date(details.checkedAt).toLocaleString():'recently';
+ $('answer').innerHTML=`<div class="duplicate" role="status"><p><strong>You already checked this screenshot</strong> with the same question (${esc(when)}). No credit was used.</p>
+  ${index>=0?'<button class="secondary" id="openPrevious">Open saved result</button>':''}<button id="checkAgain">Check again (uses 1 credit)</button></div>`;
+ if(index>=0)$('openPrevious').onclick=()=>render(history[index].result);
+ $('checkAgain').onclick=()=>submitCheck(true);
+}
+$('checkForm').onsubmit=event=>{event.preventDefault();submitCheck(false);};
+async function submitCheck(confirmDuplicate){
+ const file=$('screenshot').files[0];if(!file||!account)return;
  if(file.size>3000000){message('Choose a screenshot under 3 MB for this pilot.');return;}
  pendingCheck=pendingCheck||crypto.randomUUID();const requestId=pendingCheck,sessionAtStart=sessionRun;
  $('analyze').disabled=true;$('screenshot').disabled=true;$('question').disabled=true;$('working').hidden=false;
  try{
   const image=await new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(reader.result);reader.onerror=reject;reader.readAsDataURL(file);});
-  const result=await api('analyze','POST',{requestId,image,question:$('question').value});if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
- }catch(error){message(error.message);await refresh();}
+  const result=await api('analyze','POST',{requestId,image,question:$('question').value,...(confirmDuplicate?{confirmDuplicate:true}:{})});if(sessionAtStart!==sessionRun)return;pendingCheck=null;render(result);await refresh();
+ }catch(error){
+  if(error.code==='duplicate_check'){await refresh();if(sessionAtStart===sessionRun)showDuplicate(error.details);}
+  else{message(error.message);await refresh();}
+ }
  finally{$('working').hidden=true;$('screenshot').disabled=false;$('question').disabled=false;$('analyze').disabled=!account||account.credits<1;}
-};
+}
 (async()=>{
  try{setup=await api('status');offer();$('email').disabled=$('password').disabled=$('login').disabled=$('signup').disabled=!setup.accountsConfigured;
   $('notice').textContent=setup.accountsConfigured?'Private pilot: sandbox payments only. Credits and saved checks are tied to your account.':'The first-user pilot is built for review. Account and payment services have not been connected, so sign-up, sign-in and checkout are unavailable here.';
