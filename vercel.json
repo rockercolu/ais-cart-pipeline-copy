@@ -4,5 +4,11 @@
       "maxDuration": 300,
       "includeFiles": "aiscart/**"
     }
-  }
+  },
+  "rewrites": [
+    {
+      "source": "/objects",
+      "destination": "/objects/index.html"
+    }
+  ]
 }
