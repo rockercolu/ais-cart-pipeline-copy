@@ -119,7 +119,7 @@ def handle(method,action,headers,raw):
                 'checkoutSetupChecks':{'accountSettingsPresent':all(c[k] for k in account_keys),'stripeTestKeyFormat':c['STRIPE_SECRET_KEY'].startswith('sk_test_') and len(c['STRIPE_SECRET_KEY'])>12,'webhookSecretFormat':c['STRIPE_WEBHOOK_SECRET'].startswith('whsec_') and len(c['STRIPE_WEBHOOK_SECRET'])>12},
                 'missing':[k for k,v in c.items() if not v]})
         if action=='webhook' and method=='POST':return response(200,webhook(headers,raw))
-        allowed={'signup':{'POST'},'login':{'POST'},'logout':{'POST'},'session':{'GET'},'inventory':{'GET','PUT'},'history':{'GET','DELETE'},'checkout':{'POST'},'analyze':{'POST'},'ad':{'POST'}}
+        allowed={'signup':{'POST'},'login':{'POST'},'logout':{'POST'},'session':{'GET'},'inventory':{'GET','PUT'},'history':{'GET','DELETE'},'objects':{'GET'},'checkout':{'POST'},'analyze':{'POST'},'ad':{'POST'}}
         if action not in allowed or method not in allowed[action]:raise PilotError(405,'method_not_allowed','That action or method is not supported.')
         if method!='GET':verify_origin(headers)
         try:body=json.loads(raw or b'{}')
@@ -159,6 +159,9 @@ def handle(method,action,headers,raw):
             if not isinstance(tools,list) or len(tools)>30 or any(not isinstance(t,str) or not t.strip() or len(t)>60 for t in tools) or type(revision)!=int or revision<0:
                 raise PilotError(400,'invalid_inventory','Use up to 30 tool names and the current inventory revision.')
             return response(200,rpc('pilot_set_inventory',{'p_user':uid,'p_tools':list(dict.fromkeys(t.strip() for t in tools)),'p_revision':revision}))
+        if action=='objects':
+            rows=sb('/rest/v1/pilot_objects?user_id=eq.'+uid+'&select=object_key,parent_story,title,object_type,tools,evidence,workflow,related_keys&order=parent_story,title&limit=500',token=token)
+            return response(200,{'objects':rows})
         if action=='history':
             if method=='DELETE':
                 record=valid_id(body.get('id'))
