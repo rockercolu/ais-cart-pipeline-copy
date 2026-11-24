@@ -70,6 +70,9 @@ class Providers:
      assert auth=='service-test';self.balances.setdefault(body['user_id'],0);return []
     return [{'credits':self.balances.get(uid,0)}]
    if path=='/rest/v1/pilot_inventory':return [self.inventory[uid]] if uid in self.inventory else []
+   if path=='/rest/v1/pilot_objects':
+    assert auth!='service-test' and q.get('user_id')==['eq.'+uid]
+    return [{'object_key':'fixture','title':'Synthetic video','tools':['Descript'],'workflow':['Edit takes']}] if uid==OWNER else []
    if path=='/rest/v1/pilot_checks':
     rows=[v for v in self.history.values() if v['user_id']==uid and (not q.get('id') or 'eq.'+v['id'] in q['id'])]
     if method=='DELETE':
@@ -111,6 +114,10 @@ with patch.dict(os.environ,ENV,clear=True):
  provider=Providers()
  with patch.object(pilot,'request',provider):
   status,_,data=call('status',who=False);check('Status exposes no keys and labels test-only',status==200 and data['testOnly'] and 'service-test' not in json.dumps(data))
+  check('Objects require authentication',call('objects',who=False)[0]==401)
+  check('Owner reads private objects',call('objects')[2]['objects'][0]['object_key']=='fixture')
+  check('Other account sees no objects',call('objects',who='other')[2]['objects']==[])
+  check('Objects reject writes',call('objects','POST',{})[0]==405)
   check('Unauthenticated account is rejected',call('history',who=False)[0]==401)
   before=len(provider.calls);check('Cross-origin sign-in rejected before provider call',call('login','POST',{'email':'owner@example.test','password':'long-test-password'},who=False,extra={'Origin':'https://attacker.example'})[0]==403 and len(provider.calls)==before)
   check('Uninvited signup rejected',call('signup','POST',{'email':'uninvited@example.test','password':'long-test-password'},who=False)[0]==403)
