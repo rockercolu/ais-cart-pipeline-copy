@@ -230,6 +230,11 @@ footer h2 { font-size: 15px; color: var(--ink); }
   .pipeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
   .pipeline li::before { left: -12px; top: 0; } }
 footer a { color: inherit; }
+.pilot-receipt {grid-template-columns: minmax(0, 120px) minmax(0,1fr);}
+.pilot-receipt .shot,.pilot-receipt .shot figcaption,.pilot-receipt .glance {min-width:0;max-width:100%;overflow-wrap:anywhere;}
+.pilot-receipt .shot img {display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
+.pilot-receipt .glance h3 {margin:0;overflow-wrap:anywhere;}
+@media(max-width:560px){.pilot-receipt{grid-template-columns:minmax(0,1fr)}.pilot-receipt .shot{max-width:120px}.pilot-receipt .line .stamp{max-width:100%;box-sizing:border-box}}
 </style>
 </head>
 <body>
@@ -858,15 +863,16 @@ function render(r, question, secs) {
 function renderPilotReceipt(r, question, secs) {
   const v=r.verdict||{},facts=r.facts||{},decision=v.decision||'WAIT';
   const checkList=Array.isArray(v.check_before_buying)?v.check_before_buying:[];
-  const evidence={facts,checks:r.checks||{},verdict_checks:r.verdict_checks||[]};
-  const due=facts.total_due_now?.value||'Not shown';
+  const evidence={facts,checks:r.checks||{},verdict_checks:r.verdict_checks||[],original_verdict:v};
+  const due=facts.total_due_now?.value??'Not shown';
+  const headline=decision==='WAIT'?'Wait before buying — verify the offer and costs':(v.headline||'Purchase check complete');
   $('result').innerHTML=`
     <h2 id="right-title">Answer</h2>
-    <div class="first">
+    <div class="first pilot-receipt">
       <figure class="shot"><img src="${state.image}" alt="The checkout you submitted"><figcaption><strong>${esc(state.name)}</strong><span>Checked in ${secs.toFixed(1)} s · 1 sandbox credit</span></figcaption></figure>
       <div class="glance">
         <p class="line"><span class="stamp in ${esc(decision)}">${esc(LABEL[decision]||decision)}</span></p>
-        <h3>${esc(v.headline||'Purchase check complete')}</h3>
+        <h3>${esc(headline)}</h3>
         <dl>
           <div><dt>Due today</dt><dd class="v">${esc(due)}</dd></div>
           <div><dt>Another option</dt><dd class="opt" id="optRow"><span class="opt-sub">Looking…</span></dd></div>
