@@ -246,7 +246,7 @@ footer a { color: inherit; }
 .pilot-receipt .shot img {display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
 .pilot-receipt .glance h3 {margin:0;overflow-wrap:anywhere;}
 @media(max-width:560px){.pilot-receipt{grid-template-columns:minmax(0,1fr)}.pilot-receipt .shot{max-width:120px}.pilot-receipt .line .stamp{max-width:100%;box-sizing:border-box}}
-.ad-receipt { display:block; } .ad-receipt p { margin:8px 0; } .ad-receipt h3 { margin:16px 0 6px; } .ad-receipt ul { margin:6px 0 12px; } .ad-receipt details { margin:12px 0; } #adQuestion { width:100%; box-sizing:border-box; }
+.stamp.RESEARCH { color:#155e75; background:#ecfeff; } .ad-receipt .ad-verdict { display:flex; flex-wrap:wrap; align-items:center; gap:16px; margin:16px 0 20px; } .ad-verdict .stamp { display:inline-block; font-size:clamp(24px,4vw,36px); max-width:100%; box-sizing:border-box; } .ad-verdict strong { flex:1 1 180px; } .ad-receipt { display:block; } .ad-receipt p { margin:8px 0; } .ad-receipt h3 { margin:16px 0 6px; } .ad-receipt ul { margin:6px 0 12px; } .ad-receipt details { margin:12px 0; } #adQuestion { width:100%; box-sizing:border-box; }
 </style>
 </head>
 <body>
@@ -393,7 +393,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-24.unified-ad-pilot.4";
+const PAGE_VERSION = "2026-11-24.unified-ad-pilot.5";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -990,7 +990,7 @@ $("goAd").onclick = async () => {
         if(response.ok) editorial=await response.json();
       } catch (_) { /* Extraction remains usable if recommendation fails. */ }
       if (run !== state.run) return;
-      $("result").innerHTML = `<div class="ad-receipt"><h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — do not purchase on this evidence alone</strong></p>${fixture ? `<p><strong>Simulated advertisement:</strong> test fixture indicated by filename or extracted text. Not a real offer.</p>` : ""}<p><strong>Account inventory:</strong> ${inventory.length} saved tools (access and plans not verified).</p>${proposed}${question ? `<details><summary>Your question</summary><p>${esc(question)}</p><p>This is a preliminary research recommendation, not a tailored model answer.</p></details>` : ""}
+      $("result").innerHTML = `<div class="ad-receipt"><h2>Advertisement analysis — experimental</h2><div class="ad-verdict line"><span class="stamp in RESEARCH">RESEARCH</span><strong>Do not purchase on this evidence alone.</strong></div>${fixture ? `<p><strong>Simulated advertisement:</strong> test fixture indicated by filename or extracted text. Not a real offer.</p>` : ""}<p><strong>Account inventory:</strong> ${inventory.length} saved tools (access and plans not verified).</p>${proposed}${question ? `<details><summary>Your question</summary><p>${esc(question)}</p><p>This is a preliminary research recommendation, not a tailored model answer.</p></details>` : ""}
         <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
         <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)}</li>`).join("") || "<li>No legible claims found</li>"}</ul>
         <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
@@ -1007,7 +1007,7 @@ $("goAd").onclick = async () => {
   }
   const duplicates = owned.filter(x => x.toLowerCase() === name.toLowerCase());
   $("result").innerHTML = `<h2 id="right-title">Advertisement review — experimental</h2>
-    <div class="glance"><p class="line"><span class="stamp in WAIT">RESEARCH</span><span class="action">Verify before clicking, trying or buying.</span></p></div>
+    <div class="glance"><p class="line"><span class="stamp in RESEARCH">RESEARCH</span><span class="action">Verify before clicking, trying or buying.</span></p></div>
     <p><strong>Advertiser:</strong> ${esc(name)}</p>
     <p><strong>Advertised claim (user-transcribed; unverified):</strong> ${esc(claim)}</p>
     ${goal ? `<p><strong>Your goal:</strong> ${esc(goal)}</p>` : ""}
