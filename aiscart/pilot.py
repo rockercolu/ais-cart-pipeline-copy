@@ -146,6 +146,8 @@ def handle(method,action,headers,raw):
         user,token,new_cookie=identity(headers);uid=user['id']
         if new_cookie:response_headers['Set-Cookie']=new_cookie
         if action=='session':
+            # First authenticated session provisions a zero-credit account without manual SQL.
+            sb('/rest/v1/pilot_accounts?on_conflict=user_id','POST',{'user_id':uid},privileged=True,prefer='resolution=ignore-duplicates,return=minimal')
             rpc('pilot_reclaim_stale',{'p_user':uid})
             rows=sb('/rest/v1/pilot_accounts?user_id=eq.'+uid+'&select=credits',token=token)
             return response(200,{'user':{'id':uid,'email':user.get('email')},'credits':rows[0]['credits'] if rows else 0,'testOnly':True})
@@ -232,6 +234,19 @@ def run_check(uid,body):
     client=client_from_env()
     if client is None:raise PilotError(503,'model_not_configured','Screenshot analysis is not configured yet.')
     fingerprint=hashlib.sha256(image+b'\x00'+question.encode()).hexdigest()
+    # A new request for an already-completed screenshot/question needs explicit consent.
+    # Replaying the SAME request ID remains idempotent and never consumes a second credit.
+    if not body.get('confirmRepeat'):
+        # Do not block an idempotent retry even if another matching check was completed later.
+        same_request=sb('/rest/v1/pilot_usage?id=eq.'+request_id+'&user_id=eq.'+uid+'&select=id&limit=1',privileged=True)
+        recent=[] if same_request else sb('/rest/v1/pilot_usage?user_id=eq.'+uid+'&fingerprint=eq.'+fingerprint+'&status=eq.completed&select=id,created_at&order=created_at.desc&limit=1',privileged=True)
+        if recent and recent[0]['id']!=request_id:
+            from datetime import datetime,timezone,timedelta
+            try:
+                checked=datetime.fromisoformat(recent[0]['created_at'].replace('Z','+00:00'))
+                if datetime.now(timezone.utc)-checked<timedelta(hours=24):
+                    raise PilotError(409,'repeat_confirmation_required','This screenshot and question were checked in the last 24 hours. Run again and use another credit?')
+            except (ValueError,TypeError):pass
     reservation=rpc('pilot_reserve_check',{'p_user':uid,'p_request':request_id,'p_fingerprint':fingerprint})
     if reservation['status']=='completed' and reservation.get('result'):return reservation['result']
     if reservation['status']=='no_credits':raise PilotError(402,'no_credits','Add a sandbox check pack first.')

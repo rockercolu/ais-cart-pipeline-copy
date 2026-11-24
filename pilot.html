@@ -28,7 +28,7 @@
 <label>Your question<textarea id="question" maxlength="500" required>Should I complete this purchase?</textarea></label><button id="analyze" type="submit">Check and save to my history</button></form>
 <p id="working" role="status" hidden>Reading the screenshot and checking its terms…</p><div id="answer" aria-live="polite"></div>
 </section>
-<section class="card" id="historyCard" hidden><div class="row"><h2>Your saved checks</h2><button id="refresh" class="secondary">Refresh account</button></div><p class="hint">Saved across devices. Original screenshots are not stored in history.</p><div id="history"></div></section>
+<section class="card" id="historyCard" hidden><div class="row"><h2>Your saved checks</h2><button id="refresh" class="secondary">Refresh account</button></div><p id="refreshStatus" class="hint" role="status"></p><p class="hint">Saved across devices. Original screenshots are not stored in history.</p><div id="history"></div></section>
 <footer><details><summary>What this pilot saves and shares</summary><p>Account authentication is handled by Supabase. Tool names, questions, extracted purchase facts and results are saved to your account. A screenshot is sent to the analysis service and Meta’s models to run the check; its original image bytes are not saved in this app’s history. Delete individual saved checks from the history list.</p><p>Stripe hosts the payment form. This pilot refuses live Stripe keys and accepts only sandbox payments. It does not collect or store card numbers. These are draft pilot terms, not an approved public sales offer.</p></details>
 <a href="/">Return to the existing screenshot and goal tester</a></footer>
 </main></body></html>
