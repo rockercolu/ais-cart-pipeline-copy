@@ -230,6 +230,17 @@ footer h2 { font-size: 15px; color: var(--ink); }
   .pipeline li:last-child { padding-bottom: 0; border-left-color: transparent; }
   .pipeline li::before { left: -12px; top: 0; } }
 footer a { color: inherit; }
+/* Visible progress while a live ad is being analyzed. */
+.ad-thinking { display:flex; align-items:center; gap:12px; padding:12px 0; }
+.ad-loading { min-height: 360px; display:flex; flex-direction:column; justify-content:space-between; }
+.ad-loading-bottom { display:flex; justify-content:flex-start; align-items:center; gap:12px; border-top:1px solid var(--line); padding-top:16px; margin-top:32px; }
+.ad-loading-bottom .ad-dots { min-width:54px; }
+.ad-dots { display:inline-flex; align-items:center; gap:5px; min-width:54px; }
+.ad-dots span { display:block; width:9px; height:9px; border-radius:50%; background:var(--primary); animation:ad-bounce 1s ease-in-out infinite; }
+.ad-dots span:nth-child(2) { animation-delay:.15s; }
+.ad-dots span:nth-child(3) { animation-delay:.3s; }
+@keyframes ad-bounce { 0%,65%,100% { transform:translateY(0); opacity:.45; } 30% { transform:translateY(-7px); opacity:1; } }
+@media (prefers-reduced-motion:reduce) { .ad-dots span { animation:none; opacity:.8; } }
 .pilot-receipt {grid-template-columns: minmax(0, 120px) minmax(0,1fr);}
 .pilot-receipt .shot,.pilot-receipt .shot figcaption,.pilot-receipt .glance {min-width:0;max-width:100%;overflow-wrap:anywhere;}
 .pilot-receipt .shot img {display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
@@ -268,6 +279,7 @@ footer a { color: inherit; }
       </div>
       <div class="modes" role="tablist" aria-label="How do you want to start?">
         <button type="button" role="tab" id="modeShot" aria-selected="true" aria-controls="shotSteps">I have a screenshot</button>
+        <button type="button" role="tab" id="modeAd" aria-selected="false" aria-controls="adSteps">I saw an ad</button>
         <button type="button" role="tab" id="modeDescription" aria-selected="false" aria-controls="descriptionSteps">Describe a purchase</button>
         <button type="button" role="tab" id="modeGoal" aria-selected="false" aria-controls="goalSteps">I don't have a cart yet</button>
       </div>
@@ -300,6 +312,25 @@ footer a { color: inherit; }
           <button class="primary" id="go" disabled>Check before I buy</button>
         </li>
       </ol>
+      <div class="goal-steps" id="adSteps" role="tabpanel" aria-labelledby="modeAd" hidden>
+        <label class="step-title" for="adFile">Upload an advertisement screenshot</label>
+        <div class="drop ad-drop" id="adDrop" role="button" tabindex="0" aria-label="Choose or drop an advertisement screenshot">
+          <span aria-hidden="true" style="font-size:28px">⇧</span>
+          <strong id="adDropText">Drag an ad screenshot here</strong>
+          <span>or click to choose a PNG, JPEG, WebP or GIF</span>
+          <img id="adPreview" alt="Your advertisement screenshot" hidden>
+          <span class="picked" id="adPicked" hidden></span>
+        </div>
+        <input id="adFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+        <p class="hint">The live model can extract visible advertising claims. Claims remain unverified; if extraction is unavailable, you can enter them manually below.</p>
+        <label class="step-title" for="adName">Advertiser or product name</label>
+        <input id="adName" type="text" maxlength="100" placeholder="e.g. Kajabi">
+        <label class="step-title" for="adClaim">What does the ad promise?</label>
+        <textarea id="adClaim" maxlength="1000" placeholder="Copy the main promise and any trial or price terms"></textarea>
+        <label class="step-title" for="adGoal">What would you use it for? (optional)</label>
+        <input id="adGoal" type="text" maxlength="250" placeholder="e.g. find customers for my startup">
+        <button class="primary" type="button" id="goAd">Review this ad</button>
+      </div>
       <div class="goal-steps" id="goalSteps" role="tabpanel" aria-labelledby="modeGoal" hidden>
         <label class="step-title" for="goalText">Tell us what you're trying to do</label>
         <textarea id="goalText" maxlength="500" placeholder="In your own words. For example: I need to get more people to sign up on my website. Where do I start?"></textarea>
@@ -359,7 +390,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-22.account-dashboard-preview.1";
+const PAGE_VERSION = "2026-11-24.unified-ad-pilot.1";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -398,10 +429,12 @@ function cancelRun() {
 }
 
 function showAnswerPanel() {
-  // On a phone the answer sits below the form: bring it into view so the decision is the first thing seen.
-  if (!matchMedia("(max-width: 880px)").matches) return;
-  // An instant jump: a smooth scroll can be cut short when the page changes under it, leaving the answer off screen.
-  $("result").scrollIntoView({behavior: "auto", block: "start"});
+  // On desktop and mobile, take the user to the answer instead of leaving them at the button.
+  // Scroll after DOM content is updated, including the initial loading state.
+  requestAnimationFrame(() => {
+    const result = $("result");
+    if (result) result.scrollIntoView({behavior: "auto", block: "start"});
+  });
 }
 
 function forStrip(note) {
@@ -409,7 +442,7 @@ function forStrip(note) {
 }
 
 function showEmpty() {
-  $("result").innerHTML = state.mode === "description"
+  $("result").innerHTML = state.mode === "ad" ? `<h2 id="right-title" hidden>Ad review</h2><div class="empty"><strong>Your ad analysis will appear here</strong>Drop an advertisement screenshot or enter its claims, then press Review this ad.</div>` : state.mode === "description"
     ? `<h2 id="right-title" hidden>Comparison</h2><div class="empty"><strong>Compare a purchase with what you have</strong>Describe the product, add your tools below, then press Compare with my tools.</div>`
     : state.mode === "goal"
     ? `<h2 id="right-title" hidden>Answer</h2><div class="empty"><strong>Where to start will appear here</strong>
@@ -456,6 +489,7 @@ function resetAll() {
   $("q").value = DEFAULT_Q;
   $("shopperGoal").value = "";
   $("goalText").value = ""; $("goGoal").disabled = true;
+  adImageUrl = null; $("adFile").value = ""; $("adPreview").hidden = true; $("adPicked").hidden = true; $("adDropText").textContent = "Drag an ad screenshot here"; $("adName").value = ""; $("adClaim").value = ""; $("adGoal").value = "";
   $("descriptionText").value = ""; $("descriptionGoal").value = ""; $("goDescription").disabled = true;
   state.checkedGoal = "";
   markSample(null);
@@ -577,25 +611,30 @@ function setMode(mode) {
   cancelRun();
   state.pick += 1;
   state.mode = mode;
+  if (mode !== "ad") { adImageUrl = null; $("adPreview").hidden = true; $("adPicked").hidden = true; $("adDropText").textContent = "Drag an ad screenshot here"; $("adFile").value = ""; }
   $("modeShot").setAttribute("aria-selected", String(mode === "shot"));
   $("modeDescription").setAttribute("aria-selected", String(mode === "description"));
   $("descriptionSteps").hidden = mode !== "description";
   $("modeGoal").setAttribute("aria-selected", String(mode === "goal"));
+  $("modeAd").setAttribute("aria-selected", String(mode === "ad"));
   $("shotSteps").hidden = mode !== "shot";
   $("goalSteps").hidden = mode !== "goal";
-  if (mode === "goal") { $("ownedBox").open = true; showEmpty(); $("goalText").focus(); }
+  $("adSteps").hidden = mode !== "ad";
+  if (mode === "ad") { showEmpty(); $("adName").focus(); }
+  else if (mode === "goal") { $("ownedBox").open = true; showEmpty(); $("goalText").focus(); }
   else if (mode === "description") { $("ownedBox").open = true; showEmpty(); $("descriptionText").focus(); }
   else if (state.image) showReady(); else showEmpty();
 }
 $("modeShot").onclick = () => setMode("shot");
 $("modeGoal").onclick = () => setMode("goal");
+$("modeAd").onclick = () => setMode("ad");
 $("modeDescription").onclick = () => setMode("description");
 document.querySelector(".modes").onkeydown = e => {
   if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
   e.preventDefault();
-  const modes = ["shot", "description", "goal"];
-  const next = modes[(modes.indexOf(state.mode) + (e.key === "ArrowRight" ? 1 : 2)) % 3];
-  setMode(next); $({shot: "modeShot", description: "modeDescription", goal: "modeGoal"}[next]).focus();
+  const modes = ["shot","ad","description","goal"];
+  const next = modes[(modes.indexOf(state.mode)+(e.key==="ArrowRight"?1:3))%4];
+  setMode(next); $({shot:"modeShot",ad:"modeAd",description:"modeDescription",goal:"modeGoal"}[next]).focus();
 };
 
 // ---------- Tools the shopper already has. Kept in this browser; the page works without storage. ----------
@@ -857,6 +896,118 @@ function render(r, question, secs) {
   };
 }
 
+// Conservative, explainable capability comparison. A potential overlap is NOT a verified feature match.
+// Only consider tools explicitly saved in this browser; never imply a user owns a tool from the library.
+const AD_CAPABILITIES = [
+  {label:"website building", pattern:/\b(build (?:your |a |my )?websites?|create (?:your |a |my )?websites?|website builder|build (?:web |landing )?pages?|site builder)\b/i, tools:["Squarespace","Webflow","Wix","WordPress","Framer","Shopify","Kajabi","Carrd","GoDaddy"]},
+  {label:"digital product or course sales", pattern:/\b(courses?|digital products?|sell your products|online courses?)\b/i, tools:["Kajabi","Teachable","Thinkific","Podia","Gumroad","Shopify","Squarespace"]},
+  {label:"email marketing and audience growth", pattern:/\b(audience|email marketing|newsletter|subscribers|grow your audience|mailing list)\b/i, tools:["Mailchimp","ConvertKit","Kit","Beehiiv","Substack","Kajabi","Squarespace"]},
+  {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book(?:s|ing)? (?:the |sales )?calls?|book(?:s|ing)? meetings|writes? (?:the |outreach )?emails?|finds? (?:the )?people who need|writes? (?:the )?emails?|books? (?:the )?calls?)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
+  {label:"creative content production", pattern:/\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
+];
+function adOwnedComparison(x, goal) {
+  const product = String(x.product || x.advertiser || "").trim();
+  const exact = owned.filter(t => t.toLowerCase() === product.toLowerCase());
+  const claims = (x.claims || []).map(c => String(c.text || ""));
+  const claimText = claims.join(" ") + " " + (x.offers || []).join(" ");
+  const overlaps = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => ({
+    capability:c.label,
+    tools:owned.filter(t => c.tools.some(n => n.toLowerCase() === t.toLowerCase()) && t.toLowerCase() !== product.toLowerCase())
+  })).filter(c => c.tools.length);
+  const assessed = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => c.label);
+  return `<h3>Compare with tools you already have</h3>
+    ${goal ? `<p><strong>Your intended use:</strong> ${esc(goal)}</p>` : '<p class="muted">Add what you would use it for to make the comparison more useful.</p>'}
+    ${!owned.length ? '<p>No tools saved in your browser inventory yet. Expand “Tools you already have” to add them, then review this ad again.</p>' : ""}
+    ${exact.length ? `<p><strong>Already listed:</strong> ${esc(exact.join(", "))} is in your inventory. Check whether you are already subscribed before buying again.</p>` : ""}
+    ${overlaps.length ? `<p><strong>Potential functional overlap — verify before buying:</strong></p><ul>${overlaps.map(c=>`<li><strong>${esc(c.capability)}:</strong> ${esc(c.tools.join(", "))} — compare actual features, plan limits and pricing.</li>`).join("")}</ul>` : `<p>No potential overlap identified from ${owned.length ? "the recognized ad claims and saved tool names" : "your inventory"}. This does not establish that the product is unique or necessary.</p>`}
+    <p class="muted">Recognized advertised capabilities: ${esc(assessed.join(", ") || "none in the current comparison catalog")}. This is a preliminary name-and-capability screening, not independent verification or a feature-by-feature audit.</p>`;
+}
+
+// Ad intake A1: manual evidence capture, intentionally separate from checkout verdict API.
+let adImageUrl = null;
+async function chooseAdFile(file) {
+  if (!file) return;
+  cancelRun();
+  const pick = ++state.pick;
+  if (!["image/png","image/jpeg","image/webp","image/gif"].includes(file.type)) {
+    $("result").innerHTML = '<div class="err">Choose a PNG, JPEG, WebP or GIF image.</div>'; return;
+  }
+  $("adDropText").textContent = "Loading advertisement…";
+  try {
+    const data = await shrink(file);
+    if (pick !== state.pick || state.mode !== "ad") return;
+    adImageUrl = data;
+    $("adPreview").src = data; $("adPreview").hidden = false;
+    $("adPicked").textContent = file.name || "Advertisement image"; $("adPicked").hidden = false;
+    $("adDropText").textContent = "Advertisement ready — drop another to replace";
+    showEmpty();
+  } catch (err) {
+    if (pick === state.pick) $("result").innerHTML = '<div class="err">Could not read that image. Try a different screenshot.</div>';
+  }
+}
+$("adFile").onchange = e => chooseAdFile(e.target.files[0]);
+$("adDrop").onclick = () => $("adFile").click();
+$("adDrop").onkeydown = e => {
+  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("adFile").click(); }
+};
+$("adDrop").ondragover = e => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; $("adDrop").classList.add("over"); };
+$("adDrop").ondragleave = e => { e.preventDefault(); $("adDrop").classList.remove("over"); };
+$("adDrop").ondrop = e => { e.preventDefault(); $("adDrop").classList.remove("over"); chooseAdFile(e.dataTransfer.files[0]); };
+$("goAd").onclick = async () => {
+  cancelRun();
+  const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim();
+  if (!adImageUrl && (!name || !claim)) {
+    $("result").innerHTML = '<div class="err">Upload an ad image or enter its advertiser and claims.</div>'; showAnswerPanel(); return;
+  }
+  if (adImageUrl) {
+    const run = state.run;
+    $("goAd").disabled = true;
+    $("result").innerHTML = '<div class="ad-loading" role="status" aria-live="polite"><div><strong>Reading the advertisement…</strong><p>Checking the claims and your saved tools. Promotional claims are not verified facts.</p></div><div class="ad-loading-bottom"><span class="ad-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="muted">Zero is working…</span></div></div>';
+    showAnswerPanel();
+    try {
+      const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
+      const data = await response.json();
+      if (run !== state.run) return;
+      if (!response.ok) {
+        if (response.status === 401) {
+          const message = data.error?.code === "missing_service_token" ? "This preview requires its SERVICE_TOKEN. Expand Settings and enter the Preview access token." : "The access token was rejected. Confirm you used SERVICE_TOKEN for this Vercel Preview, not a Meta, Stripe or Supabase API key.";
+          throw new Error(message);
+        }
+        throw new Error(data.error?.message || "Image extraction unavailable");
+      }
+      if (data.status !== "extracted") {
+        $("result").innerHTML = `<h2>Ad review</h2><p>${esc(data.message || "No image extraction performed.")}</p>`;
+        return;
+      }
+      const x = data.extraction || {};
+      $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>
+        <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
+        <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)} <span class="muted">(Evidence: ${esc(c.evidence)})</span></li>`).join("") || "<li>No legible claims found</li>"}</ul>
+        <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
+        <h3>Still needs verification</h3><ul>${(x.missing_information || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>Pricing, renewal, cancellation, and feature evidence</li>"}</ul>
+        ${adOwnedComparison(x, goal)}
+        <p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
+      showAnswerPanel();
+    } catch (err) {
+      if (run === state.run) { $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`; showAnswerPanel(); }
+    } finally { if (run === state.run) $("goAd").disabled = false; }
+    return;
+  }
+  const duplicates = owned.filter(x => x.toLowerCase() === name.toLowerCase());
+  $("result").innerHTML = `<h2 id="right-title">Advertisement review — experimental</h2>
+    <div class="glance"><p class="line"><span class="stamp in WAIT">RESEARCH</span><span class="action">Verify before clicking, trying or buying.</span></p></div>
+    <p><strong>Advertiser:</strong> ${esc(name)}</p>
+    <p><strong>Advertised claim (user-transcribed; unverified):</strong> ${esc(claim)}</p>
+    ${goal ? `<p><strong>Your goal:</strong> ${esc(goal)}</p>` : ""}
+    ${adOwnedComparison({advertiser:name,product:name,claims:[{text:claim}]},goal)}
+    <div class="how"><h3>Before proceeding</h3><ul>
+      <li>Confirm pricing, trial renewal and cancellation terms on the official website.</li>
+      <li>Verify the advertised features independently; this is a claim, not a tested capability.</li>
+      <li>Compare existing tools before adding another subscription.</li>
+    </ul></div>
+    <p class="muted">This prototype does not perform OCR, web research, or a model evaluation. No approval to buy or start a trial is given.</p>`;
+  showAnswerPanel();
+};
 
 // Pilot analysis has a smaller response schema than the original experimental pipeline.
 // Render its evidence honestly rather than assuming review/calls/versions are present.

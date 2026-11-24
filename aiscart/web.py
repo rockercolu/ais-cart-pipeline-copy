@@ -10,6 +10,7 @@ import threading
 import time
 
 from .analyze import StepError, VERSIONS, analyze, settings_from_env
+from .ad import extract_ad
 from .goal import GOAL_VERSION, GOAL_VERSION_V2, MAX_GOAL, interpret_goal
 from .meta import MetaError, client_from_env
 
@@ -93,12 +94,18 @@ def handle(method, path, headers, body):
         return 204, _cors(), b""
     if path == "/api/health" and method == "GET":
         return health()
-    if path not in ("/api/analyze", "/api/goal"):
+    if path not in ("/api/analyze", "/api/goal", "/api/ad"):
         return _error(404, "not_found", f"No route for {method} {path}. Use POST /api/analyze, POST /api/goal or GET /api/health.")
     if method != "POST":
         return _error(405, "method_not_allowed", f"Use POST {path}.")
     if not _authorized(headers):
-        return _error(401, "unauthorized", "Missing or wrong service token. Send it as \"Authorization: Bearer <token>\".")
+        supplied = bool((_header(headers, "Authorization") or "").strip() or
+                        (_header(headers, "X-Service-Token") or "").strip())
+        if supplied:
+            return _error(401, "invalid_service_token",
+                          "The access token was rejected. Check the SERVICE_TOKEN for this Preview environment; do not use a model, Stripe or Supabase key.")
+        return _error(401, "missing_service_token",
+                      "This preview requires an access token. Open Settings and enter its SERVICE_TOKEN before submitting.")
     if len(body) > MAX_BODY:
         return _error(413, "too_large", f"Request is {len(body)} bytes; the limit is {MAX_BODY}. Send a smaller or JPEG screenshot.")
     if _rate_limited(headers):
@@ -110,6 +117,14 @@ def handle(method, path, headers, body):
         image, mime = _decode_image(req.get("image"))
     except ValueError as e:
         return _error(400, "bad_request", str(e) if "JSON" not in str(e) else "Body must be JSON.")
+    if path == "/api/ad":
+        client = client_from_env()
+        if client is None:
+            return _error(503, "not_configured", "A model key is required to extract advertising claims.")
+        try:
+            return _json(200, extract_ad(image, mime, client))
+        except MetaError as e:
+            return _error(502, "model_call_failed", str(e), step="ad_extraction", http_status=e.status)
     review = req.get("review", "auto")
     if review not in ("auto", "always", "never"):
         return _error(400, "bad_request", "\"review\" must be auto, always or never.")
