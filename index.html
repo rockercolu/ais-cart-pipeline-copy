@@ -392,7 +392,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-24.unified-ad-pilot.2";
+const PAGE_VERSION = "2026-11-24.unified-ad-pilot.3";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -908,21 +908,21 @@ const AD_CAPABILITIES = [
   {label:"prospect discovery and outreach", pattern:/\b(prospects?|lead generation|outreach|cold emails?|find customers|book(?:s|ing)? (?:the |sales )?calls?|book(?:s|ing)? meetings|writes? (?:the |outreach )?emails?|finds? (?:the )?people who need|writes? (?:the )?emails?|books? (?:the )?calls?)\b/i, tools:["Apollo","Clay","Instantly","Lemlist","HubSpot","Explee AI"]},
   {label:"creative content production", pattern:/\b(create (your )?content|content creation|generate videos?|make videos?|design graphics)\b/i, tools:["Canva","Adobe Express","Descript","OpenArt","CapCut"]}
 ];
-function adOwnedComparison(x, goal) {
+function adOwnedComparison(x, goal, inventory = owned) {
   const product = String(x.product || x.advertiser || "").trim();
-  const exact = owned.filter(t => t.toLowerCase() === product.toLowerCase());
+  const exact = inventory.filter(t => t.toLowerCase() === product.toLowerCase());
   const claims = (x.claims || []).map(c => String(c.text || ""));
   const claimText = claims.join(" ") + " " + (x.offers || []).join(" ");
   const overlaps = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => ({
     capability:c.label,
-    tools:owned.filter(t => c.tools.some(n => n.toLowerCase() === t.toLowerCase()) && t.toLowerCase() !== product.toLowerCase())
+    tools:inventory.filter(t => c.tools.some(n => n.toLowerCase() === t.toLowerCase()) && t.toLowerCase() !== product.toLowerCase())
   })).filter(c => c.tools.length);
   const assessed = AD_CAPABILITIES.filter(c => c.pattern.test(claimText)).map(c => c.label);
   return `<h3>Compare with tools you already have</h3>
     ${goal ? `<p><strong>Your intended use:</strong> ${esc(goal)}</p>` : '<p class="muted">Add what you would use it for to make the comparison more useful.</p>'}
-    ${!owned.length ? '<p>No tools saved in your browser inventory yet. Expand “Tools you already have” to add them, then review this ad again.</p>' : ""}
+    ${!inventory.length ? '<p>No tools found in the inventory used for this comparison.</p>' : ""}
     ${exact.length ? `<p><strong>Already listed:</strong> ${esc(exact.join(", "))} is in your inventory. Check whether you are already subscribed before buying again.</p>` : ""}
-    ${overlaps.length ? `<p><strong>Potential functional overlap — verify before buying:</strong></p><ul>${overlaps.map(c=>`<li><strong>${esc(c.capability)}:</strong> ${esc(c.tools.join(", "))} — compare actual features, plan limits and pricing.</li>`).join("")}</ul>` : `<p>No potential overlap identified from ${owned.length ? "the recognized ad claims and saved tool names" : "your inventory"}. This does not establish that the product is unique or necessary.</p>`}
+    ${overlaps.length ? `<p><strong>Potential functional overlap — verify before buying:</strong></p><ul>${overlaps.map(c=>`<li><strong>${esc(c.capability)}:</strong> ${esc(c.tools.join(", "))} — compare actual features, plan limits and pricing.</li>`).join("")}</ul>` : `<p>No potential overlap identified from ${inventory.length ? "the recognized ad claims and saved tool names" : "your inventory"}. This does not establish that the product is unique or necessary.</p>`}
     <p class="muted">Recognized advertised capabilities: ${esc(assessed.join(", ") || "none in the current comparison catalog")}. This is a preliminary name-and-capability screening, not independent verification or a feature-by-feature audit.</p>`;
 }
 
@@ -976,13 +976,25 @@ $("goAd").onclick = async () => {
         return;
       }
       const x = data.extraction || {};
+      const accountInventory = await pilotApi("inventory");
+      if (run !== state.run) return;
+      const inventory = accountInventory.tools || [];
+      let editorial = null;
+      try {
+        const response = await fetch("/api/recommend", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"description",description:[x.advertiser,x.product,...(x.claims||[]).map(c=>c.text)].filter(Boolean).join(". ").slice(0,2000),shopperGoal:goal,ownedTools:inventory})});
+        if(response.ok) editorial=await response.json();
+      } catch (_) { /* Extraction remains usable if recommendation fails. */ }
+      if (run !== state.run) return;
       $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>${question ? `<p><strong>Your question:</strong> ${esc(question)}. This extraction does not independently verify claims or approve a purchase.</p>` : ""}
         <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
-        <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)} <span class="muted">(Evidence: ${esc(c.evidence)})</span></li>`).join("") || "<li>No legible claims found</li>"}</ul>
+        <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)}</li>`).join("") || "<li>No legible claims found</li>"}</ul>
         <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
         <h3>Still needs verification</h3><ul>${(x.missing_information || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>Pricing, renewal, cancellation, and feature evidence</li>"}</ul>
-        ${adOwnedComparison(x, goal)}
-        <p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
+        <p><strong>Account inventory:</strong> ${inventory.length} saved tools (access and plans not verified).</p>
+        ${adOwnedComparison(x, goal, inventory)}
+        <h3>Editorial comparison</h3>${editorial?.ownedRecommendation ? toolBlock(editorial.ownedRecommendation,"Existing tool to investigate","have") : editorial?.ownedWorkflow?.length ? `<ul>${editorial.ownedWorkflow.map(t=>`<li>${esc(t.toolName)} — ${esc(t.role||t.bestFor||"Check suitability")}</li>`).join("")}</ul>` : `<p>${editorial ? "No owned-tool match in the current editorial library. This is not proof of a gap." : "Editorial comparison unavailable."}</p>`}
+        <h3>Before spending money</h3><p>Do not purchase on this advertisement alone. Confirm the real offer, ongoing charges, cancellation and whether your existing tools can perform the intended job.</p>
+        <details class="evidence"><summary>View extracted evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(x,null,2))}</pre></details><p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
       showAnswerPanel();
     } catch (err) {
       if (run === state.run) { $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`; showAnswerPanel(); }
