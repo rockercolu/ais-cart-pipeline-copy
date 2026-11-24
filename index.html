@@ -246,6 +246,7 @@ footer a { color: inherit; }
 .pilot-receipt .shot img {display:block;min-width:0;max-width:100%;width:100%;box-sizing:border-box;}
 .pilot-receipt .glance h3 {margin:0;overflow-wrap:anywhere;}
 @media(max-width:560px){.pilot-receipt{grid-template-columns:minmax(0,1fr)}.pilot-receipt .shot{max-width:120px}.pilot-receipt .line .stamp{max-width:100%;box-sizing:border-box}}
+.ad-receipt { display:block; } .ad-receipt p { margin:8px 0; } .ad-receipt h3 { margin:16px 0 6px; } .ad-receipt ul { margin:6px 0 12px; } .ad-receipt details { margin:12px 0; } #adQuestion { width:100%; box-sizing:border-box; }
 </style>
 </head>
 <body>
@@ -392,7 +393,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-24.unified-ad-pilot.3";
+const PAGE_VERSION = "2026-11-24.unified-ad-pilot.4";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -979,22 +980,25 @@ $("goAd").onclick = async () => {
       const accountInventory = await pilotApi("inventory");
       if (run !== state.run) return;
       const inventory = accountInventory.tools || [];
+      const fixture = /simulated[_ -]ad|test[_ -]fixture/i.test($("adPicked").textContent || "") || /simulated test ad|not a real offer/i.test(JSON.stringify(x));
+      const outreach = /prospects?|lead generation|qualified leads|outreach/i.test(goal+" "+(x.claims||[]).map(c=>c.text).join(" "));
+      const researchTools = inventory.filter(t=>/^(ChatGPT|Gemini|Claude)$/i.test(t));
+      const proposed = outreach && researchTools.length ? `<h3>Try an existing-tool workflow first</h3><ol><li>${esc(researchTools.join(" / "))}: research a small list of potential customers and check sources manually.</li><li>Use one of these tools to draft tailored messages for human review.</li><li>Test sending a small compliant outreach batch using an existing email service, if available.</li></ol><p><strong>Unresolved gap:</strong> verified prospect database, automatic qualification, delivery and follow-up automation are not established. This is an untested partial workflow, not a replacement claim.</p>` : "";
       let editorial = null;
       try {
         const response = await fetch("/api/recommend", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode:"description",description:[x.advertiser,x.product,...(x.claims||[]).map(c=>c.text)].filter(Boolean).join(". ").slice(0,2000),shopperGoal:goal,ownedTools:inventory})});
         if(response.ok) editorial=await response.json();
       } catch (_) { /* Extraction remains usable if recommendation fails. */ }
       if (run !== state.run) return;
-      $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>${question ? `<p><strong>Your question:</strong> ${esc(question)}. This extraction does not independently verify claims or approve a purchase.</p>` : ""}
+      $("result").innerHTML = `<div class="ad-receipt"><h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — do not purchase on this evidence alone</strong></p>${fixture ? `<p><strong>Simulated advertisement:</strong> test fixture indicated by filename or extracted text. Not a real offer.</p>` : ""}<p><strong>Account inventory:</strong> ${inventory.length} saved tools (access and plans not verified).</p>${proposed}${question ? `<details><summary>Your question</summary><p>${esc(question)}</p><p>This is a preliminary research recommendation, not a tailored model answer.</p></details>` : ""}
         <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
         <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)}</li>`).join("") || "<li>No legible claims found</li>"}</ul>
         <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
         <h3>Still needs verification</h3><ul>${(x.missing_information || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>Pricing, renewal, cancellation, and feature evidence</li>"}</ul>
-        <p><strong>Account inventory:</strong> ${inventory.length} saved tools (access and plans not verified).</p>
         ${adOwnedComparison(x, goal, inventory)}
         <h3>Editorial comparison</h3>${editorial?.ownedRecommendation ? toolBlock(editorial.ownedRecommendation,"Existing tool to investigate","have") : editorial?.ownedWorkflow?.length ? `<ul>${editorial.ownedWorkflow.map(t=>`<li>${esc(t.toolName)} — ${esc(t.role||t.bestFor||"Check suitability")}</li>`).join("")}</ul>` : `<p>${editorial ? "No owned-tool match in the current editorial library. This is not proof of a gap." : "Editorial comparison unavailable."}</p>`}
         <h3>Before spending money</h3><p>Do not purchase on this advertisement alone. Confirm the real offer, ongoing charges, cancellation and whether your existing tools can perform the intended job.</p>
-        <details class="evidence"><summary>View extracted evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(x,null,2))}</pre></details><p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p>`;
+        <details class="evidence"><summary>View extracted evidence</summary><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(JSON.stringify(x,null,2))}</pre></details><p class="muted">AI vision extraction only. No independent research, purchase approval, or subscription signup.</p></div>`;
       showAnswerPanel();
     } catch (err) {
       if (run === state.run) { $("result").innerHTML = `<div class="err">${esc(err.message)}. No claims were verified.</div>`; showAnswerPanel(); }
