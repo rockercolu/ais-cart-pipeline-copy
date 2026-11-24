@@ -119,7 +119,7 @@ def handle(method,action,headers,raw):
                 'checkoutSetupChecks':{'accountSettingsPresent':all(c[k] for k in account_keys),'stripeTestKeyFormat':c['STRIPE_SECRET_KEY'].startswith('sk_test_') and len(c['STRIPE_SECRET_KEY'])>12,'webhookSecretFormat':c['STRIPE_WEBHOOK_SECRET'].startswith('whsec_') and len(c['STRIPE_WEBHOOK_SECRET'])>12},
                 'missing':[k for k,v in c.items() if not v]})
         if action=='webhook' and method=='POST':return response(200,webhook(headers,raw))
-        allowed={'signup':{'POST'},'login':{'POST'},'logout':{'POST'},'session':{'GET'},'inventory':{'GET','PUT'},'history':{'GET','DELETE'},'checkout':{'POST'},'analyze':{'POST'}}
+        allowed={'signup':{'POST'},'login':{'POST'},'logout':{'POST'},'session':{'GET'},'inventory':{'GET','PUT'},'history':{'GET','DELETE'},'checkout':{'POST'},'analyze':{'POST'},'ad':{'POST'}}
         if action not in allowed or method not in allowed[action]:raise PilotError(405,'method_not_allowed','That action or method is not supported.')
         if method!='GET':verify_origin(headers)
         try:body=json.loads(raw or b'{}')
@@ -164,6 +164,16 @@ def handle(method,action,headers,raw):
                 return response(200,{'deleted':True})
             return response(200,{'checks':sb('/rest/v1/pilot_checks?user_id=eq.'+uid+'&select=id,question,result,created_at&order=created_at.desc&limit=30',token=token)})
         if action=='checkout':return response(200,checkout(uid,valid_id(body.get('requestId'))))
+        if action=='ad':
+            from .web import _decode_image, _rate_limited
+            from .ad import extract_ad
+            from .meta import client_from_env
+            if _rate_limited(headers):raise PilotError(429,'rate_limited','Too many requests; try again later.')
+            try:image,mime=_decode_image(body.get('image'))
+            except ValueError as e:raise PilotError(400,'invalid_image',str(e))
+            client=client_from_env()
+            if client is None:raise PilotError(503,'model_not_configured','Advertisement extraction is not configured.')
+            return response(200,extract_ad(image,mime,client))
         if action=='analyze':return response(200,run_check(uid,body))
     except PilotError as e:return response(e.status,{'error':{'code':e.code,'message':e.message}})
     except Exception:
