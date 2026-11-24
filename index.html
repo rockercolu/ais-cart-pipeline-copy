@@ -162,7 +162,7 @@ details summary { cursor: pointer; color: var(--ink-2); font-size: 14px; }
 .opt-warn { color: var(--wait); font-weight: 700; font-size: 14.5px; }
 .pay-more { margin-top: 6px; padding: 6px 10px; font-size: 13.5px; }
 /* Two ways in */
-.modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; padding: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; }
+.modes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 6px; padding: 4px; background: var(--paper); border: 1px solid var(--line); border-radius: 10px; }
 .modes button { border: 0; background: transparent; padding: 10px 8px; line-height: 1.25; }
 .modes button[aria-selected="true"] { background: var(--card); color: var(--brand); box-shadow: 0 1px 2px var(--shadow), 0 0 0 1px var(--line); }
 .modes button[aria-selected="false"] { color: var(--ink-2); }
@@ -323,10 +323,12 @@ footer a { color: inherit; }
         </div>
         <input id="adFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
         <p class="hint">The live model can extract visible advertising claims. Claims remain unverified; if extraction is unavailable, you can enter them manually below.</p>
-        <label class="step-title" for="adName">Advertiser or product name</label>
+        <label class="step-title" for="adName">Advertiser or product name (manual fallback)</label>
         <input id="adName" type="text" maxlength="100" placeholder="e.g. Kajabi">
-        <label class="step-title" for="adClaim">What does the ad promise?</label>
+        <label class="step-title" for="adClaim">What does the ad promise? (manual fallback)</label>
         <textarea id="adClaim" maxlength="1000" placeholder="Copy the main promise and any trial or price terms"></textarea>
+        <label class="step-title" for="adQuestion">What would you like to know? (optional)</label>
+        <input id="adQuestion" maxlength="500" placeholder="Should I make the purchase?">
         <label class="step-title" for="adGoal">What would you use it for? (optional)</label>
         <input id="adGoal" type="text" maxlength="250" placeholder="e.g. find customers for my startup">
         <button class="primary" type="button" id="goAd">Review this ad</button>
@@ -390,7 +392,7 @@ footer a { color: inherit; }
 </main>
 
 <script>
-const PAGE_VERSION = "2026-11-24.unified-ad-pilot.1";
+const PAGE_VERSION = "2026-11-24.unified-ad-pilot.2";
 const DEFAULT_Q = "Should I complete this purchase?";
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -426,6 +428,7 @@ function cancelRun() {
   $("go").disabled = !state.image;
   $("goGoal").disabled = !$("goalText").value.trim();
   $("goDescription").disabled = !$("descriptionText").value.trim();
+  $("goAd").disabled = false;
 }
 
 function showAnswerPanel() {
@@ -489,7 +492,7 @@ function resetAll() {
   $("q").value = DEFAULT_Q;
   $("shopperGoal").value = "";
   $("goalText").value = ""; $("goGoal").disabled = true;
-  adImageUrl = null; $("adFile").value = ""; $("adPreview").hidden = true; $("adPicked").hidden = true; $("adDropText").textContent = "Drag an ad screenshot here"; $("adName").value = ""; $("adClaim").value = ""; $("adGoal").value = "";
+  adImageUrl = null; $("adFile").value = ""; $("adPreview").hidden = true; $("adPicked").hidden = true; $("adDropText").textContent = "Drag an ad screenshot here"; $("adName").value = ""; $("adClaim").value = ""; $("adGoal").value = ""; $("adQuestion").value = "";
   $("descriptionText").value = ""; $("descriptionGoal").value = ""; $("goDescription").disabled = true;
   state.checkedGoal = "";
   markSample(null);
@@ -620,7 +623,7 @@ function setMode(mode) {
   $("shotSteps").hidden = mode !== "shot";
   $("goalSteps").hidden = mode !== "goal";
   $("adSteps").hidden = mode !== "ad";
-  if (mode === "ad") { showEmpty(); $("adName").focus(); }
+  if (mode === "ad") { showEmpty(); $("adQuestion").focus(); }
   else if (mode === "goal") { $("ownedBox").open = true; showEmpty(); $("goalText").focus(); }
   else if (mode === "description") { $("ownedBox").open = true; showEmpty(); $("descriptionText").focus(); }
   else if (state.image) showReady(); else showEmpty();
@@ -955,7 +958,7 @@ $("adDrop").ondragleave = e => { e.preventDefault(); $("adDrop").classList.remov
 $("adDrop").ondrop = e => { e.preventDefault(); $("adDrop").classList.remove("over"); chooseAdFile(e.dataTransfer.files[0]); };
 $("goAd").onclick = async () => {
   cancelRun();
-  const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim();
+  const name = $("adName").value.trim(), claim = $("adClaim").value.trim(), goal = $("adGoal").value.trim(), question = $("adQuestion").value.trim();
   if (!adImageUrl && (!name || !claim)) {
     $("result").innerHTML = '<div class="err">Upload an ad image or enter its advertiser and claims.</div>'; showAnswerPanel(); return;
   }
@@ -965,22 +968,15 @@ $("goAd").onclick = async () => {
     $("result").innerHTML = '<div class="ad-loading" role="status" aria-live="polite"><div><strong>Reading the advertisement…</strong><p>Checking the claims and your saved tools. Promotional claims are not verified facts.</p></div><div class="ad-loading-bottom"><span class="ad-dots" aria-hidden="true"><span></span><span></span><span></span></span><span class="muted">Zero is working…</span></div></div>';
     showAnswerPanel();
     try {
-      const response = await fetch("/api/ad", {method:"POST", headers:{"Content-Type":"application/json", ...($("token").value.trim() ? {"Authorization":"Bearer "+$("token").value.trim()} : {})}, body:JSON.stringify({image:adImageUrl})});
-      const data = await response.json();
+      const data = await pilotApi("ad","POST",{image:adImageUrl});
       if (run !== state.run) return;
-      if (!response.ok) {
-        if (response.status === 401) {
-          const message = data.error?.code === "missing_service_token" ? "This preview requires its SERVICE_TOKEN. Expand Settings and enter the Preview access token." : "The access token was rejected. Confirm you used SERVICE_TOKEN for this Vercel Preview, not a Meta, Stripe or Supabase API key.";
-          throw new Error(message);
-        }
-        throw new Error(data.error?.message || "Image extraction unavailable");
-      }
+
       if (data.status !== "extracted") {
         $("result").innerHTML = `<h2>Ad review</h2><p>${esc(data.message || "No image extraction performed.")}</p>`;
         return;
       }
       const x = data.extraction || {};
-      $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>
+      $("result").innerHTML = `<h2>Advertisement analysis — experimental</h2><p><strong>RESEARCH — claims not verified</strong></p>${question ? `<p><strong>Your question:</strong> ${esc(question)}. This extraction does not independently verify claims or approve a purchase.</p>` : ""}
         <p><strong>Advertiser:</strong> ${esc(x.advertiser || "Not legible")}</p><p><strong>Product:</strong> ${esc(x.product || "Not legible")}</p>
         <h3>Claims visible in the screenshot</h3><ul>${(x.claims || []).map(c=>`<li>${esc(c.text)} <span class="muted">(Evidence: ${esc(c.evidence)})</span></li>`).join("") || "<li>No legible claims found</li>"}</ul>
         <h3>Advertised offers</h3><ul>${(x.offers || []).map(c=>`<li>${esc(c)}</li>`).join("") || "<li>None legible</li>"}</ul>
