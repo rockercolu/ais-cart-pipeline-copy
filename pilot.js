@@ -29,7 +29,7 @@ async function authenticate(action){
  const password=$('password').value;
  if(!$('authForm').reportValidity())return;
  $('login').disabled=$('signup').disabled=true;
- try{const data=await api(action,'POST',{email:$('email').value,password});$('password').value='';message(data.confirmationRequired?data.message:'You’re signed in. Your sandbox balance starts at zero.');if(!data.confirmationRequired)await refresh();}
+ try{const data=await api(action,'POST',{email:$('email').value,password});$('password').value='';message(data.confirmationRequired?data.message:'You’re signed in. Check your account details below.');if(!data.confirmationRequired)await refresh();}
  catch(error){message(error.message);}finally{$('login').disabled=$('signup').disabled=!setup.accountsConfigured;}
 }
 $('authForm').onsubmit=event=>{event.preventDefault();authenticate('login');};$('signup').onclick=()=>authenticate('signup');
