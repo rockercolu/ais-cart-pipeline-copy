@@ -1,7 +1,7 @@
 'use strict';
 const $=id=>document.getElementById(id);
 const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let setup=null,account=null,revision=0,inventory=[],history=[];
+let setup=null,account=null,revision=0,inventory=[],history=[],privateObjects=[];
 let pendingCheck=null,checkoutRequest=null,renderRun=0,sessionRun=0;
 async function api(action,method='GET',body){
  const response=await fetch('/api/pilot?action='+action,{method,headers:{'Content-Type':'application/json'},credentials:'same-origin',...(body?{body:JSON.stringify(body)}:{})});
@@ -20,7 +20,8 @@ async function refresh(){
  const run=sessionRun;
  try{const session=await api('session');const saved=await api('inventory');const recent=await api('history');
   if(run!==sessionRun)return;
-  account=session;inventory=saved.tools;revision=saved.revision;$('tools').value=inventory.join('\n');history=recent.checks;renderHistory();}
+  account=session;inventory=saved.tools;revision=saved.revision;$('tools').value=inventory.join('\n');history=recent.checks;renderHistory();
+  try{const catalog=await api('objects');if(run!==sessionRun)return;privateObjects=catalog.objects||[];}catch{privateObjects=[];}}
  catch(error){if(run!==sessionRun)return;if(error.status!==401)message(error.message);account=null;}
  showAccount();
  
@@ -42,6 +43,18 @@ $('checkout').onclick=async()=>{
  catch(error){message(error.message);showAccount();}
 };
 $('refresh').onclick=async()=>{const b=$('refresh');b.disabled=true;b.textContent='Refreshing…';try{await refresh();$('refreshStatus').textContent=account?'Updated '+new Date().toLocaleTimeString()+' · '+account.credits+' sandbox credits available.':'';}finally{b.disabled=false;b.textContent='Refresh account';}};
+function objectEvidenceHtml(data){
+ const matches=[data.ownedRecommendation,...(data.ownedWorkflow||[])].filter(Boolean);
+ const names=new Set(matches.map(x=>String(x.toolName||'').trim().toLowerCase()).filter(Boolean));
+ const evidence=privateObjects.filter(o=>(o.tools||[]).some(t=>names.has(String(t).trim().toLowerCase())));
+ if(!evidence.length)return '';
+ return '<details><summary>Your previous object evidence ('+evidence.length+')</summary>'+
+  evidence.map(o=>'<article class="historyItem"><strong>'+esc(o.title)+'</strong><p>'+esc(o.parent_story||'')+' · '+esc(o.object_type||'')+'</p>'+
+   '<p><strong>Tools:</strong> '+esc((o.tools||[]).join(', '))+'</p>'+
+   ((o.workflow||[]).length?'<p><strong>Recorded workflow:</strong> '+esc(o.workflow.join(' → '))+'</p>':'')+
+   '</article>').join('')+
+  '<p class="hint">These private catalog records show prior work with the tool; they do not confirm current access or suitability.</p></details>';
+}
 function render(result){
  const run=++renderRun;
  const v=result.verdict;
@@ -50,7 +63,8 @@ function render(result){
  $('facts').textContent=JSON.stringify({facts:result.facts,checks:result.checks,verdict_checks:result.verdict_checks},null,2);
  fetch('/api/recommend',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pipeline:result,ownedTools:inventory})}).then(r=>r.json()).then(data=>{
   const box=$('ownedOptions');if(!box||run!==renderRun)return;
-  box.textContent=data.ownedRecommendation?`You already have ${data.ownedRecommendation.toolName}.`:data.recommendation?`Related tool: ${data.recommendation.toolName}. See the existing tester for the full editorial comparison.`:'No tool in our editorial library matches this purchase.';
+  const summary=data.ownedRecommendation?`<p>You already have ${esc(data.ownedRecommendation.toolName)}.</p>`:data.recommendation?`<p>Related tool: ${esc(data.recommendation.toolName)}. See the existing tester for the full editorial comparison.</p>`:'<p>No tool in our editorial library matches this purchase.</p>';
+  box.innerHTML=summary+objectEvidenceHtml(data);
  }).catch(()=>{});
 }
 function renderHistory(){

@@ -268,6 +268,7 @@ footer a { color: inherit; }
       <button type="button" class="ghost" id="pilotLoadTools">Load account tools here</button>
       <button type="button" class="ghost" id="pilotRefresh">Refresh account</button>
       <p id="pilotSyncStatus" role="status"></p>
+      <details><summary>Private Objects Library <span id="pilotObjectsCount"></span></summary><p class="muted">Recovered object records. Original media stays on your device.</p><input id="pilotObjectSearch" placeholder="Search stories, objects or tools" aria-label="Search private objects"><div id="pilotObjects"></div></details>
       <details><summary>Saved pilot checks <span id="pilotHistoryCount"></span></summary><div id="pilotHistory"></div></details>
     </div>
     <p id="pilotGuest" hidden><a href="/pilot.html">Sign in</a> to see your balance and saved checks here.</p>
@@ -788,6 +789,7 @@ function renderGoal(data, goal) {
     <p class="goal-quote">${esc(goal)}</p>
     ${blocks.join("")}
     ${extrasHtml(data)}
+    ${objectEvidenceHtml(data)}
     ${why ? `<details class="why-opt"><summary>Why these tools</summary>${why}
       <p class="muted">${data.matcher === "spark2" ? "Muse Spark read your goal and the tools you have, then picked only from our editorial notes on the tools we've used. \"For your goal\" and \"What it would add\" are Spark's words; the rest is ours."
         : data.matcher === "spark" ? "Muse Spark read your goal, then picked only from our editorial notes on the tools we've used."
@@ -1068,7 +1070,21 @@ async function pilotApi(action,method='GET',body){
  if(!response.ok)throw Object.assign(new Error(data.error?.message||'Account request failed'),{status:response.status});
  return data;
 }
+let privateObjects=[];
+function renderPrivateObjects(){
+ const q=$('pilotObjectSearch').value.trim().toLowerCase();
+ $('pilotObjectsCount').textContent='('+privateObjects.length+')';
+ $('pilotObjects').innerHTML=privateObjects.filter(o=>[o.title,o.parent_story,o.object_type,...(o.tools||[])].join(' ').toLowerCase().includes(q)).map(o=>'<article style="padding:12px 0;border-top:1px solid #d5dce5"><strong>'+esc(o.title)+'</strong><p>'+esc(o.parent_story)+' · '+esc(o.object_type)+' · '+esc((o.tools||[]).join(', '))+'</p><details><summary>Evidence and relationships</summary><p>'+esc((o.related_keys||[]).map(k=>privateObjects.find(x=>x.object_key===k)?.title||k).join(', '))+'</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">'+esc(JSON.stringify(o.evidence,null,2))+'</pre><p>'+esc((o.workflow||[]).join(' → '))+'</p></details></article>').join('')||'<p>No matching objects.</p>';
+}
+function objectEvidenceHtml(data){
+ const matches=[data.ownedRecommendation,...(data.ownedWorkflow||[])].filter(Boolean);
+ const names=new Set(matches.map(x=>String(x.toolName).toLowerCase()));
+ const evidence=privateObjects.filter(o=>(o.tools||[]).some(t=>names.has(t.toLowerCase()))&&(o.workflow||[]).length);
+ return evidence.length?'<details class="why-opt"><summary>Your previous object evidence</summary>'+evidence.map(o=>'<p><strong>'+esc(o.title)+'</strong> · '+esc(o.parent_story)+'</p><p>Recorded workflow: '+esc(o.workflow.join(' → '))+'</p>').join('')+'<p class="muted">Past use is evidence of experience, not proof of current access or suitability.</p></details>':'';
+}
+$('pilotObjectSearch').oninput=renderPrivateObjects;
 async function refreshPilotOverview(){
+ privateObjects=[];renderPrivateObjects();
  try{
   const account=await pilotApi('session');
   pilotSignedIn=true;
@@ -1078,6 +1094,7 @@ async function refreshPilotOverview(){
   $('pilotEmail').textContent=account.user.email||'Signed in';
   const [inventory,history]=await Promise.all([pilotApi('inventory'),pilotApi('history')]);
   pilotInventoryRevision=inventory.revision;
+  try{const catalog=await pilotApi('objects');privateObjects=catalog.objects||[];renderPrivateObjects();}catch(e){$('pilotObjects').textContent='Private catalog unavailable.';}
   const checks=history.checks||[];
   $('pilotHistoryCount').textContent='('+checks.length+')';
   $('pilotHistory').innerHTML=checks.map((item,i)=>{

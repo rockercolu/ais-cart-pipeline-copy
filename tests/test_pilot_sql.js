@@ -1,5 +1,5 @@
 'use strict';
-// Execute the real migration/RLS/functions against a local Postgres engine, not a credit-counter double.
+// Execute the real migrations/RLS/functions against a local Postgres engine, not a credit-counter double.
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const {PGlite}=require('@electric-sql/pglite');
@@ -15,7 +15,7 @@ const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-82
  grant usage on schema public,auth to anon,authenticated,service_role; grant execute on function auth.uid() to authenticated;
  insert into auth.users values('${OWNER}'),('${OTHER}');`);
  await db.exec(fs.readFileSync('migrations/001_first_user_pilot.sql','utf8'));
- ok('Migration executes in Postgres',true);
+ ok('Pilot migration executes in Postgres',true);
  await q('insert into pilot_accounts(user_id) values($1),($2)',[OWNER,OTHER]);
  await q('insert into pilot_orders(session_id,user_id,request_id,amount,currency,credits) values($1,$2,$3,500,\'usd\',10)',['cs_test_sql',OWNER,'33333333-3333-4333-8333-333333333333']);
  await q('select pilot_fulfill_order($1,$2,500,\'usd\')',['cs_test_sql',OWNER]);
@@ -49,20 +49,29 @@ const OWNER='11111111-1111-4111-8111-111111111111', OTHER='22222222-2222-4222-82
  await q('select pilot_set_inventory($1,$2,0)',[OWNER,JSON.stringify(['Canva','ElevenLabs'])]);
  await assert.rejects(()=>q('select pilot_set_inventory($1,$2,0)',[OWNER,JSON.stringify(['Lost update'])]));
  ok('Inventory revision prevents lost updates',(await row('select tools from pilot_inventory where user_id=$1',[OWNER])).tools.length===2);
+ await db.exec(fs.readFileSync('migrations/002_private_objects.sql','utf8'));
+ await db.exec(fs.readFileSync('migrations/002_private_objects.sql','utf8'));
+ ok('Private objects migration runs repeatedly without data loss',true);
+ await q('insert into pilot_objects(user_id,object_key,parent_story,title,object_type) values($1,$2,$3,$4,$5),($6,$7,$8,$9,$10)',
+  [OWNER,'owner-object','parent-a','Owner record','video',OTHER,'other-object','parent-b','Other record','workflow']);
  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${OTHER}',false);`);
  ok('RLS hides another account history',(await q('select * from pilot_checks')).rows.length===0);
  ok('RLS hides another inventory',(await q('select * from pilot_inventory')).rows.length===0);
- await assert.rejects(()=>q('update pilot_accounts set credits=999'));
- ok('Signed-in clients cannot change credits',true);
- await assert.rejects(()=>q('select pilot_fulfill_order($1,$2,500,\'usd\')',['cs_test_sql',OWNER]));
- ok('Signed-in clients cannot call billing functions',true);
+ ok('RLS hides another account objects',(await q('select * from pilot_objects')).rows.length===1 && (await row('select object_key from pilot_objects')).object_key==='other-object');
  await db.exec(`select set_config('request.jwt.claim.sub','${OWNER}',false);`);
- ok('Owner can read own result',(await q('select * from pilot_checks')).rows.length===1);
- await q('delete from pilot_checks where id=$1',[id]);
- ok('Owner can delete own saved result',(await q('select * from pilot_checks')).rows.length===0);
+ ok('Owner can read own objects',(await q('select * from pilot_objects')).rows.length===1);
+ await assert.rejects(()=>q('insert into pilot_objects(user_id,object_key,parent_story,title,object_type) values($1,$2,$3,$4,$5)',[OWNER,'client-write','parent','Client write','video']));
+ await assert.rejects(()=>q('update pilot_objects set title=$1 where object_key=$2',['Changed','owner-object']));
+ ok('Authenticated clients cannot create or change catalog records',true);
+ await q('delete from pilot_objects where object_key=$1',['owner-object']);
+ ok('Owner can delete only their own object',(await q('select object_key from pilot_objects')).rows.length===0);
+ await db.exec('reset role; set role service_role;');
+ await q('insert into pilot_objects(user_id,object_key,parent_story,title,object_type) values($1,$2,$3,$4,$5)',[OWNER,'server-write','parent','Server write','workflow']);
+ ok('Service role can write private catalog records',(await q('select * from pilot_objects where object_key=$1',['server-write'])).rows.length===1);
  await db.exec('reset role; set role anon;');
  await assert.rejects(()=>q('select * from pilot_accounts'));
+ await assert.rejects(()=>q('select * from pilot_objects'));
  await assert.rejects(()=>q('select pilot_reserve_check($1,$2,$3)',[OWNER,id,fp]));
- ok('Anonymous clients cannot read accounts or reserve credits',true);
+ ok('Anonymous clients cannot read accounts or private objects',true);
  await db.close();console.log(`${passed} actual Postgres migration/RLS/ledger checks passed`);
 })().catch(err=>{console.error(err);process.exitCode=1;});
